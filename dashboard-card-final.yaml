@@ -1,0 +1,129 @@
+type: vertical-stack
+cards:
+  # Status Header
+  - type: markdown
+    content: |
+      ## 🔋 Marstek Batterij Rotatie
+
+      **Actieve Batterij:** {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+
+      **P1 Meter:** {{ states('sensor.p1_meter_power') }}W
+      {% if states('sensor.p1_meter_power')|float < 0 %}
+      → ☀️ Teruglevering
+      {% else %}
+      → ⚡ Verbruik
+      {% endif %}
+
+      **Laatste Switch:** {{ as_timestamp(states('input_datetime.last_battery_switch')) | timestamp_custom('%H:%M', true) }}
+
+  # Systeem aan/uit
+  - type: entities
+    title: Systeem
+    entities:
+      - entity: input_boolean.battery_rotation_enabled
+        name: Batterij Rotatie
+
+  # SOC Overzicht
+  - type: horizontal-stack
+    cards:
+      - type: gauge
+        entity: sensor.marstek_venuse_d828_state_of_charge
+        name: Fase A (schuin)
+        min: 0
+        max: 100
+        severity:
+          green: 50
+          yellow: 20
+          red: 0
+        needle: true
+
+      - type: gauge
+        entity: sensor.marstek_venuse_3_0_9a7d_state_of_charge
+        name: Fase B (plat)
+        min: 0
+        max: 100
+        severity:
+          green: 50
+          yellow: 20
+          red: 0
+        needle: true
+
+      - type: gauge
+        entity: sensor.marstek_venuse_state_of_charge
+        name: Fase C (geen)
+        min: 0
+        max: 100
+        severity:
+          green: 50
+          yellow: 20
+          red: 0
+        needle: true
+
+  # Automatische Selectie
+  - type: entities
+    title: Automatische Selectie
+    entities:
+      - entity: sensor.battery_emptiest
+        name: Leegste Batterij
+        icon: mdi:battery-low
+      - entity: sensor.battery_fullest
+        name: Volste Batterij
+        icon: mdi:battery-high
+
+  # Manuele Controle
+  - type: horizontal-stack
+    cards:
+      - type: button
+        name: Activeer Fase A
+        icon: mdi:battery-charging-50
+        tap_action:
+          action: call-service
+          service: script.marstek_activate_fase_a
+
+      - type: button
+        name: Activeer Fase B
+        icon: mdi:battery-charging-50
+        tap_action:
+          action: call-service
+          service: script.marstek_activate_fase_b
+
+      - type: button
+        name: Activeer Fase C
+        icon: mdi:battery-charging-50
+        tap_action:
+          action: call-service
+          service: script.marstek_activate_fase_c
+
+  # Emergency Stop
+  - type: button
+    name: 🛑 STOP - Alle naar Manual
+    icon: mdi:stop-circle
+    tap_action:
+      action: call-service
+      service: script.marstek_all_batteries_manual
+      confirmation:
+        text: Weet je zeker dat je alle batterijen wilt stoppen?
+
+  # Instellingen
+  - type: entities
+    title: ⚙️ Instellingen
+    entities:
+      - entity: input_number.battery_switch_hysteresis_solar
+        name: Hysteresis Zon
+      - entity: input_number.battery_switch_hysteresis_grid
+        name: Hysteresis Net
+      - entity: input_number.trigger_delay_solar
+        name: Trigger Delay Zon
+      - entity: input_number.trigger_delay_grid
+        name: Trigger Delay Net
+      - entity: input_number.battery_switch_delay_minutes
+        name: Switch Delay
+      - entity: input_number.battery_min_soc_discharge
+        name: Min SOC Ontladen
+      - entity: input_number.battery_max_soc_charge
+        name: Max SOC Laden
+      - type: divider
+      - entity: input_datetime.night_mode_start_time
+        name: Nachtmodus Start
+      - entity: input_datetime.day_mode_start_time
+        name: Dagmodus Start

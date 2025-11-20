@@ -1,0 +1,650 @@
+# ============================================================================
+# MARSTEK 3-BATTERY ROTATION SYSTEM
+# Intelligente batterij rotatie op basis van P1 meter metingen
+# ============================================================================
+#
+# Batterij Mapping:
+# - Fase A (schuin):  sensor.marstek_venuse_d828_state_of_charge
+# - Fase B (plat):    sensor.marstek_venuse_3_0_9a7d_state_of_charge
+# - Fase C (geen):    sensor.marstek_venuse_state_of_charge
+#
+# P1 Meter: sensor.p1_meter_power
+#   - Negatief = teruglevering aan net (zonoverschot)
+#   - Positief = verbruik van net
+# ============================================================================
+
+# ============================================================================
+# TEMPLATE SENSORS
+# Bepaal welke batterij het leegst/volst is
+# ============================================================================
+template:
+  - sensor:
+      # Leegste batterij (voor laden bij zonoverschot)
+      - name: "Battery Emptiest"
+        unique_id: battery_emptiest_id
+        state: >
+          {% set batteries = [
+            {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
+            {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
+            {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+          ] %}
+          {{ (batteries | sort(attribute='soc') | first).name }}
+        attributes:
+          label: >
+            {% set batteries = [
+              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
+              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
+              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+            ] %}
+            {{ (batteries | sort(attribute='soc') | first).label }}
+          soc: >
+            {% set batteries = [
+              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
+              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
+              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+            ] %}
+            {{ (batteries | sort(attribute='soc') | first).soc }}
+
+      # Volste batterij (voor ontladen bij verbruik)
+      - name: "Battery Fullest"
+        unique_id: battery_fullest_id
+        state: >
+          {% set batteries = [
+            {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
+            {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
+            {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+          ] %}
+          {{ (batteries | sort(attribute='soc', reverse=true) | first).name }}
+        attributes:
+          label: >
+            {% set batteries = [
+              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
+              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
+              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+            ] %}
+            {{ (batteries | sort(attribute='soc', reverse=true) | first).label }}
+          soc: >
+            {% set batteries = [
+              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
+              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
+              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+            ] %}
+            {{ (batteries | sort(attribute='soc', reverse=true) | first).soc }}
+
+      # Current battery status overview
+      - name: "Battery Status Overview"
+        unique_id: battery_status_overview
+        state: >
+          Actief: {{ states('input_text.active_battery_fase') }}
+        attributes:
+          fase_a_soc: "{{ states('sensor.marstek_venuse_d828_state_of_charge') }}"
+          fase_b_soc: "{{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') }}"
+          fase_c_soc: "{{ states('sensor.marstek_venuse_state_of_charge') }}"
+          emptiest: "{{ state_attr('sensor.battery_emptiest', 'label') }} ({{ state_attr('sensor.battery_emptiest', 'soc') }}%)"
+          fullest: "{{ state_attr('sensor.battery_fullest', 'label') }} ({{ state_attr('sensor.battery_fullest', 'soc') }}%)"
+          p1_power: "{{ states('sensor.p1_meter_power') }}W"
+          last_switch: "{{ states('input_datetime.last_battery_switch') }}"
+
+# ============================================================================
+# INPUT HELPERS
+# Tracking en configuratie
+# ============================================================================
+input_text:
+  active_battery_fase:
+    name: "Actieve Batterij Fase"
+    initial: "fase_a"
+    icon: mdi:battery-charging
+
+input_number:
+  battery_switch_hysteresis_solar:
+    name: "Switch Hysteresis - Zon"
+    min: 200
+    max: 3000
+    step: 100
+    initial: 500
+    unit_of_measurement: "W"
+    icon: mdi:solar-power
+
+  battery_switch_hysteresis_grid:
+    name: "Switch Hysteresis - Net"
+    min: 100
+    max: 2000
+    step: 100
+    initial: 200
+    unit_of_measurement: "W"
+    icon: mdi:transmission-tower
+
+  battery_switch_delay_minutes:
+    name: "Minimale Tijd Tussen Switches"
+    min: 1
+    max: 30
+    step: 1
+    initial: 5
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+
+  battery_min_soc_discharge:
+    name: "Minimale SOC voor Ontladen"
+    min: 5
+    max: 30
+    step: 5
+    initial: 15
+    unit_of_measurement: "%"
+    icon: mdi:battery-low
+
+  battery_max_soc_charge:
+    name: "Maximale SOC voor Laden"
+    min: 70
+    max: 100
+    step: 5
+    initial: 90
+    unit_of_measurement: "%"
+    icon: mdi:battery-high
+
+  trigger_delay_solar:
+    name: "Trigger Delay Zon"
+    min: 0.5
+    max: 10
+    step: 0.5
+    initial: 2
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+
+  trigger_delay_grid:
+    name: "Trigger Delay Net"
+    min: 0.5
+    max: 10
+    step: 0.5
+    initial: 2
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+
+input_datetime:
+  last_battery_switch:
+    name: "Laatste Batterij Switch"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-outline
+
+  night_mode_start_time:
+    name: "Nachtmodus Start"
+    has_date: false
+    has_time: true
+    icon: mdi:weather-night
+
+  day_mode_start_time:
+    name: "Dagmodus Start"
+    has_date: false
+    has_time: true
+    icon: mdi:weather-sunny
+
+input_boolean:
+  battery_rotation_enabled:
+    name: "Batterij Rotatie Systeem"
+    initial: true
+    icon: mdi:autorenew
+
+# ============================================================================
+# AUTOMATIONS
+# ============================================================================
+automation:
+  # --------------------------------------------------------------------------
+  # MORNING START - 07:00u start met Fase A
+  # --------------------------------------------------------------------------
+  - id: marstek_morning_battery_start
+    alias: "Marstek: Morning Battery A Start"
+    description: "Start met Fase A (schuin) om 07:00u 's morgens"
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+    action:
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🌅 Marstek Batterij Rotatie"
+          message: "Dagstart - Activeer Fase A (schuin)"
+
+      # Eerst Fase A actief maken
+      - service: button.press
+        target:
+          entity_id: button.fasea_schuin_d828_auto_mode
+
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+
+      # Dan pas andere batterijen deactiveren
+      - service: button.press
+        target:
+          entity_id:
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "fase_a"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  # --------------------------------------------------------------------------
+  # SOLAR EXCESS - Switch naar leegste batterij
+  # --------------------------------------------------------------------------
+  - id: marstek_solar_excess_switch
+    alias: "Marstek: Solar Excess - Switch to Emptiest"
+    description: "Bij zonoverschot: switch naar leegste batterij om op te laden"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        below: 0  # Negatief = teruglevering
+    condition:
+      # Systeem enabled
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Teruglevering moet hoger zijn dan hysteresis
+      - condition: template
+        value_template: >
+          {{ states('sensor.p1_meter_power')|float(0) < (0 - states('input_number.battery_switch_hysteresis_solar')|float(500)) }}
+
+      # Waarde moet minimaal X minuten onder drempel zijn (configureerbaar)
+      - condition: template
+        value_template: >
+          {% set delay_seconds = states('input_number.trigger_delay_solar')|float(2) * 60 %}
+          {{ (as_timestamp(now()) - as_timestamp(states.sensor.p1_meter_power.last_changed)) >= delay_seconds }}
+
+      # Minimale tijd tussen switches
+      - condition: template
+        value_template: >
+          {{ (as_timestamp(now()) - as_timestamp(states('input_datetime.last_battery_switch'))) > (states('input_number.battery_switch_delay_minutes')|float(5) * 60) }}
+
+      # Actieve batterij != leegste batterij
+      - condition: template
+        value_template: >
+          {{ states('input_text.active_battery_fase') != states('sensor.battery_emptiest') }}
+
+      # Leegste batterij heeft nog ruimte om te laden
+      - condition: template
+        value_template: >
+          {{ state_attr('sensor.battery_emptiest', 'soc')|float(100) < states('input_number.battery_max_soc_charge')|float(90) }}
+
+    action:
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "☀️ Marstek - Zonoverschot"
+          message: >
+            Teruglevering: {{ states('sensor.p1_meter_power') }}W
+            Switch van {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }}
+            naar {{ state_attr('sensor.battery_emptiest', 'label') }} ({{ state_attr('sensor.battery_emptiest', 'soc') }}% SOC)
+
+      # Eerst leegste batterij activeren
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_emptiest') == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_auto_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_emptiest') == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_auto_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_emptiest') == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_auto_mode
+
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+
+      # Dan pas andere batterijen deactiveren
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_emptiest') == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_emptiest') == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_emptiest') == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
+
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "{{ states('sensor.battery_emptiest') }}"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  # --------------------------------------------------------------------------
+  # GRID CONSUMPTION - Switch naar volste batterij
+  # --------------------------------------------------------------------------
+  - id: marstek_grid_consumption_switch
+    alias: "Marstek: Grid Consumption - Switch to Fullest"
+    description: "Bij netverbruik: switch naar volste batterij om te ontladen"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        above: 0  # Positief = verbruik
+    condition:
+      # Systeem enabled
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Verbruik moet hoger zijn dan hysteresis
+      - condition: template
+        value_template: >
+          {{ states('sensor.p1_meter_power')|float(0) > states('input_number.battery_switch_hysteresis_grid')|float(200) }}
+
+      # Waarde moet minimaal X minuten boven drempel zijn (configureerbaar)
+      - condition: template
+        value_template: >
+          {% set delay_seconds = states('input_number.trigger_delay_grid')|float(2) * 60 %}
+          {{ (as_timestamp(now()) - as_timestamp(states.sensor.p1_meter_power.last_changed)) >= delay_seconds }}
+
+      # Minimale tijd tussen switches
+      - condition: template
+        value_template: >
+          {{ (as_timestamp(now()) - as_timestamp(states('input_datetime.last_battery_switch'))) > (states('input_number.battery_switch_delay_minutes')|float(5) * 60) }}
+
+      # Actieve batterij != volste batterij
+      - condition: template
+        value_template: >
+          {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
+
+      # Volste batterij heeft nog genoeg lading
+      - condition: template
+        value_template: >
+          {{ state_attr('sensor.battery_fullest', 'soc')|float(0) > states('input_number.battery_min_soc_discharge')|float(15) }}
+
+    action:
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Netverbruik"
+          message: >
+            Verbruik: {{ states('sensor.p1_meter_power') }}W
+            Switch van {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }}
+            naar {{ state_attr('sensor.battery_fullest', 'label') }} ({{ state_attr('sensor.battery_fullest', 'soc') }}% SOC)
+
+      # Eerst volste batterij activeren
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_auto_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_auto_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_auto_mode
+
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+
+      # Dan pas andere batterijen deactiveren
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
+
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "{{ states('sensor.battery_fullest') }}"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  # --------------------------------------------------------------------------
+  # NIGHT MODE - Disable rotatie tijdens nacht laden
+  # --------------------------------------------------------------------------
+  - id: marstek_disable_rotation_at_night
+    alias: "Marstek: Disable Rotation at Night"
+    description: "Zet batterij rotatie UIT voor night charging (configureerbaar)"
+    trigger:
+      - platform: time
+        at: input_datetime.night_mode_start_time
+    action:
+      # Zet rotatie systeem UIT
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🌙 Marstek - Nachtmodus"
+          message: "Batterij rotatie uitgeschakeld voor night charging (01:00-07:00)"
+
+  # --------------------------------------------------------------------------
+  # MORNING MODE - Enable rotatie en start Fase A
+  # --------------------------------------------------------------------------
+  - id: marstek_enable_rotation_in_morning
+    alias: "Marstek: Enable Rotation in Morning"
+    description: "Zet batterij rotatie AAN en activeer Fase A (configureerbaar)"
+    trigger:
+      - platform: time
+        at: input_datetime.day_mode_start_time
+    action:
+      # Zet rotatie systeem AAN
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "☀️ Marstek - Dagmodus"
+          message: "Batterij rotatie ingeschakeld - Systeem actief"
+
+# ============================================================================
+# SCRIPTS
+# Helper scripts voor manuele controle
+# ============================================================================
+script:
+  # Switch naar specifieke batterij
+  marstek_activate_fase_a:
+    alias: "Activeer Fase A (schuin)"
+    sequence:
+      # Eerst nieuwe batterij actief maken
+      - service: button.press
+        target:
+          entity_id: button.fasea_schuin_d828_auto_mode
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+      # Dan pas andere batterijen deactiveren
+      - service: button.press
+        target:
+          entity_id:
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "fase_a"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  marstek_activate_fase_b:
+    alias: "Activeer Fase B (plat)"
+    sequence:
+      # Eerst nieuwe batterij actief maken
+      - service: button.press
+        target:
+          entity_id: button.faseb_plat_v3_9a7d_auto_mode
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+      # Dan pas andere batterijen deactiveren
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "fase_b"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  marstek_activate_fase_c:
+    alias: "Activeer Fase C (geen)"
+    sequence:
+      # Eerst nieuwe batterij actief maken
+      - service: button.press
+        target:
+          entity_id: button.fasec_geen_deb8_auto_mode
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+      # Dan pas andere batterijen deactiveren
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "fase_c"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  # Zet alle batterijen naar Auto (voor testen)
+  marstek_all_batteries_auto:
+    alias: "Alle Batterijen Auto Mode"
+    sequence:
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_auto_mode
+            - button.faseb_plat_v3_9a7d_auto_mode
+            - button.fasec_geen_deb8_auto_mode
+
+  # Zet alle batterijen naar Manual (emergency stop)
+  marstek_all_batteries_manual:
+    alias: "Alle Batterijen Manual Mode (STOP)"
+    sequence:
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+      - service: notify.persistent_notification
+        data:
+          title: "🛑 Marstek - Emergency Stop"
+          message: "Alle batterijen gezet naar Manual mode"
