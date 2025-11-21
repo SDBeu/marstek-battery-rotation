@@ -4,9 +4,9 @@ import json
 import time
 
 BATTERIES = [
-    {"ip": "192.168.0.108", "name": "Battery 1"},
-    {"ip": "192.168.0.121", "name": "Battery 2"},
-    {"ip": "192.168.0.233", "name": "Battery 3"},
+    {"ip": "192.168.6.80", "name": "FaseA (schuin - d828)"},
+    {"ip": "192.168.6.213", "name": "FaseB (plat - 9a7d)"},
+    {"ip": "192.168.6.144", "name": "FaseC (geen - deb8)"},
 ]
 
 BATTERY_PORT = 30000
