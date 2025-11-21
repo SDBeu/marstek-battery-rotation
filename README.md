@@ -47,15 +47,47 @@ Alle instellingen aanpasbaar zonder YAML te editen:
 
 ### Software
 - Home Assistant 2023.1 of nieuwer
-- [Marstek Local API integratie](https://github.com/jaapp/ha-marstek-local-api)
+- MQTT Broker (bijv. Mosquitto)
 - P1 meter integratie (bijv. DSMR)
+
+---
+
+## ⚠️ Belangrijk: MQTT Poller (Aanbevolen)
+
+De standaard Marstek Local API integratie heeft **timeout problemen** op veel batterijen. Wij bieden een **lightweight MQTT poller** die alleen de werkende API method (`ES.GetMode`) gebruikt.
+
+### Waarom MQTT Poller?
+| Aspect | HA Integratie | MQTT Poller |
+|--------|:-------------:|:-----------:|
+| ES.GetStatus | ❌ Timeout | N/A |
+| ES.GetMode | ✅ | ✅ |
+| Batterij lockups | ⚠️ Risico | ✅ Geen |
+| SOC sensor | ✅ | ✅ |
+
+**Zie [MQTT Poller Documentatie](docs/MQTT_POLLER.md)** voor installatie.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Installeer Marstek Local API
+### Optie A: Met MQTT Poller (Aanbevolen)
+
+#### 1. Installeer MQTT Poller
+```bash
+cd poller
+sudo ./install.sh
+sudo nano /opt/marstek-poller/config.yaml  # Pas IPs aan
+sudo systemctl restart marstek-poller
+```
+
+#### 2. Ga verder met stap 2 hieronder
+
+### Optie B: Met HA Integratie (Als het werkt)
+
+#### 1. Installeer Marstek Local API
 Volg de instructies op: https://github.com/jaapp/ha-marstek-local-api
+
+**Let op:** Test eerst of `ES.GetStatus` werkt op jouw batterijen!
 
 ### 2. Enable Packages
 Voeg toe aan `configuration.yaml`:
@@ -95,6 +127,7 @@ Kopieer `dashboards/battery-rotation-card.yaml` naar je Lovelace dashboard.
 
 ## 📖 Documentatie
 
+- **[MQTT Poller](docs/MQTT_POLLER.md)** - Aanbevolen: Betrouwbare SOC polling
 - **[Installation Guide](docs/INSTALLATION.md)** - Uitgebreide installatie instructies
 - **[Configuration Guide](docs/CONFIGURATION.md)** - Uitleg van alle instellingen
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Veelvoorkomende problemen
@@ -199,7 +232,7 @@ Bijdragen zijn welkom! Zie [CONTRIBUTING.md](CONTRIBUTING.md) voor details.
 
 ### Development Setup
 ```bash
-git clone https://github.com/jouw-username/marstek-battery-rotation.git
+git clone https://github.com/SDBeu/marstek-battery-rotation.git
 cd marstek-battery-rotation
 # Edit config/packages/battery-rotation.yaml
 ```
@@ -222,7 +255,7 @@ Zie [CHANGELOG.md](CHANGELOG.md) voor volledige versie geschiedenis.
 
 ## 🐛 Issues & Support
 
-Problemen gevonden? [Open een issue](https://github.com/jouw-username/marstek-battery-rotation/issues)
+Problemen gevonden? [Open een issue](https://github.com/SDBeu/marstek-battery-rotation/issues)
 
 ---
 
