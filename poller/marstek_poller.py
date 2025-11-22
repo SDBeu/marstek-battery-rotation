@@ -320,8 +320,9 @@ class MarstekPoller:
     def poll_all_batteries(self):
         """Poll all batteries and publish results."""
         state_prefix = self.config.get("mqtt", {}).get("state_topic_prefix", "marstek")
+        batteries = self.config.get("batteries", [])
 
-        for battery in self.config.get("batteries", []):
+        for i, battery in enumerate(batteries):
             name = battery.get("name", "Unknown")
             ip = battery.get("ip")
             device_id = battery.get("device_id", name.lower().replace(" ", "_"))
@@ -354,6 +355,10 @@ class MarstekPoller:
                 # Mark as offline
                 self.mqtt_client.publish(availability_topic, "offline")
                 self.logger.warning(f"{name} ({ip}): No response")
+
+            # Delay between batteries to allow socket port to be released
+            if i < len(batteries) - 1:
+                time.sleep(2)
 
     def run(self):
         """Main polling loop."""
