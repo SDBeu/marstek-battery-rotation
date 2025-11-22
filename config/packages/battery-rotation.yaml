@@ -512,6 +512,11 @@ script:
           entity_id: input_datetime.last_battery_switch
         data:
           datetime: "{{ now().isoformat() }}"
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🔋 Marstek - Manuele Switch"
+          message: "Fase A (schuin) geactiveerd"
 
   marstek_activate_fase_b:
     alias: "Activeer Fase B (plat)"
@@ -540,6 +545,11 @@ script:
           entity_id: input_datetime.last_battery_switch
         data:
           datetime: "{{ now().isoformat() }}"
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🔋 Marstek - Manuele Switch"
+          message: "Fase B (plat) geactiveerd"
 
   marstek_activate_fase_c:
     alias: "Activeer Fase C (geen)"
@@ -568,6 +578,11 @@ script:
           entity_id: input_datetime.last_battery_switch
         data:
           datetime: "{{ now().isoformat() }}"
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🔋 Marstek - Manuele Switch"
+          message: "Fase C (geen) geactiveerd"
 
   # Zet alle batterijen naar Auto (voor testen)
   marstek_all_batteries_auto:
