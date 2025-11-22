@@ -246,23 +246,14 @@ automation:
     trigger:
       - platform: numeric_state
         entity_id: sensor.p1_meter_power
-        below: 0  # Negatief = teruglevering
+        below: -500  # Teruglevering > 500W (negatief = teruglevering)
+        for:
+          minutes: 2  # Moet 2 minuten aanhouden
     condition:
       # Systeem enabled
       - condition: state
         entity_id: input_boolean.battery_rotation_enabled
         state: "on"
-
-      # Teruglevering moet hoger zijn dan hysteresis
-      - condition: template
-        value_template: >
-          {{ states('sensor.p1_meter_power')|float(0) < (0 - states('input_number.battery_switch_hysteresis_solar')|float(500)) }}
-
-      # Waarde moet minimaal X minuten onder drempel zijn (configureerbaar)
-      - condition: template
-        value_template: >
-          {% set delay_seconds = states('input_number.trigger_delay_solar')|float(2) * 60 %}
-          {{ (as_timestamp(now()) - as_timestamp(states.sensor.p1_meter_power.last_changed)) >= delay_seconds }}
 
       # Minimale tijd tussen switches
       - condition: template
@@ -373,23 +364,14 @@ automation:
     trigger:
       - platform: numeric_state
         entity_id: sensor.p1_meter_power
-        above: 0  # Positief = verbruik
+        above: 200  # Verbruik > 200W
+        for:
+          minutes: 2  # Moet 2 minuten aanhouden
     condition:
       # Systeem enabled
       - condition: state
         entity_id: input_boolean.battery_rotation_enabled
         state: "on"
-
-      # Verbruik moet hoger zijn dan hysteresis
-      - condition: template
-        value_template: >
-          {{ states('sensor.p1_meter_power')|float(0) > states('input_number.battery_switch_hysteresis_grid')|float(200) }}
-
-      # Waarde moet minimaal X minuten boven drempel zijn (configureerbaar)
-      - condition: template
-        value_template: >
-          {% set delay_seconds = states('input_number.trigger_delay_grid')|float(2) * 60 %}
-          {{ (as_timestamp(now()) - as_timestamp(states.sensor.p1_meter_power.last_changed)) >= delay_seconds }}
 
       # Minimale tijd tussen switches
       - condition: template
