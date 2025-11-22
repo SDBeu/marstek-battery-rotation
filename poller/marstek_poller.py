@@ -257,7 +257,7 @@ class MarstekPoller:
 
             self.logger.info(f"Published discovery config for {name}")
 
-    def query_battery(self, ip: str) -> dict | None:
+    def query_battery(self, ip: str, sock: socket.socket = None) -> dict | None:
         """Query a single battery using ES.GetMode."""
         api_port = self.config.get("api", {}).get("port", 30000)
         timeout = self.config.get("polling", {}).get("timeout_seconds", 3)
@@ -270,15 +270,16 @@ class MarstekPoller:
         }
         self.request_id += 1
 
-        sock = None
+        own_socket = sock is None
         try:
-            # Create UDP socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # Try SO_REUSEPORT for faster port release (not available on all platforms)
-            if hasattr(socket, 'SO_REUSEPORT'):
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            sock.bind(("0.0.0.0", api_port))
+            # Create UDP socket if not provided
+            if own_socket:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if hasattr(socket, 'SO_REUSEPORT'):
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                sock.bind(("0.0.0.0", api_port))
+
             sock.settimeout(timeout)
 
             # Send request
@@ -314,51 +315,63 @@ class MarstekPoller:
             self.logger.error(f"Error querying {ip}: {e}")
             return None
         finally:
-            if sock:
+            if own_socket and sock:
                 sock.close()
 
     def poll_all_batteries(self):
         """Poll all batteries and publish results."""
         state_prefix = self.config.get("mqtt", {}).get("state_topic_prefix", "marstek")
+        api_port = self.config.get("api", {}).get("port", 30000)
         batteries = self.config.get("batteries", [])
 
-        for i, battery in enumerate(batteries):
-            name = battery.get("name", "Unknown")
-            ip = battery.get("ip")
-            device_id = battery.get("device_id", name.lower().replace(" ", "_"))
+        # Create one socket for all batteries
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if hasattr(socket, 'SO_REUSEPORT'):
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock.bind(("0.0.0.0", api_port))
 
-            if not ip:
-                self.logger.warning(f"No IP configured for {name}")
-                continue
+            for battery in batteries:
+                name = battery.get("name", "Unknown")
+                ip = battery.get("ip")
+                device_id = battery.get("device_id", name.lower().replace(" ", "_"))
 
-            # Query battery
-            result = self.query_battery(ip)
+                if not ip:
+                    self.logger.warning(f"No IP configured for {name}")
+                    continue
 
-            availability_topic = f"{state_prefix}/{device_id}/availability"
-            state_topic = f"{state_prefix}/{device_id}/state"
+                # Query battery using shared socket
+                result = self.query_battery(ip, sock)
 
-            if result:
-                # Publish state
-                state = {
-                    "soc": result.get("bat_soc", 0),
-                    "mode": result.get("mode", "Unknown"),
-                    "ongrid_power": result.get("ongrid_power", 0),
-                    "offgrid_power": result.get("offgrid_power", 0),
-                    "timestamp": datetime.now().isoformat()
-                }
+                availability_topic = f"{state_prefix}/{device_id}/availability"
+                state_topic = f"{state_prefix}/{device_id}/state"
 
-                self.mqtt_client.publish(state_topic, json.dumps(state))
-                self.mqtt_client.publish(availability_topic, "online")
+                if result:
+                    # Publish state
+                    state = {
+                        "soc": result.get("bat_soc", 0),
+                        "mode": result.get("mode", "Unknown"),
+                        "ongrid_power": result.get("ongrid_power", 0),
+                        "offgrid_power": result.get("offgrid_power", 0),
+                        "timestamp": datetime.now().isoformat()
+                    }
 
-                self.logger.debug(f"{name}: SOC={state['soc']}%, Mode={state['mode']}")
-            else:
-                # Mark as offline
-                self.mqtt_client.publish(availability_topic, "offline")
-                self.logger.warning(f"{name} ({ip}): No response")
+                    self.mqtt_client.publish(state_topic, json.dumps(state))
+                    self.mqtt_client.publish(availability_topic, "online")
 
-            # Delay between batteries to allow socket port to be released
-            if i < len(batteries) - 1:
-                time.sleep(2)
+                    self.logger.debug(f"{name}: SOC={state['soc']}%, Mode={state['mode']}")
+                else:
+                    # Mark as offline
+                    self.mqtt_client.publish(availability_topic, "offline")
+                    self.logger.warning(f"{name} ({ip}): No response")
+
+        except OSError as e:
+            self.logger.error(f"Socket error: {e}")
+        finally:
+            if sock:
+                sock.close()
 
     def run(self):
         """Main polling loop."""
