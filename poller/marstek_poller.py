@@ -263,6 +263,9 @@ class MarstekPoller:
             # Create UDP socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Try SO_REUSEPORT for faster port release (not available on all platforms)
+            if hasattr(socket, 'SO_REUSEPORT'):
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             sock.bind(("0.0.0.0", api_port))
             sock.settimeout(timeout)
 
@@ -443,6 +446,8 @@ def main():
                 print(f"  ✅ SOC: {result.get('bat_soc')}%, Mode: {result.get('mode')}")
             else:
                 print(f"  ❌ No response")
+            # Delay between tests to allow socket port to be fully released
+            time.sleep(0.5)
         print("\n=== TEST COMPLETE ===")
         return
 
