@@ -65,9 +65,9 @@ cards:
     content: |
       | Batterij | Status | Mode |
       |----------|--------|------|
-      | Fase A | {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.fasea_schuin_d828_operating_mode') | default('?') }} |
-      | Fase B | {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.faseb_plat_v3_9a7d_operating_mode') | default('?') }} |
-      | Fase C | {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.fasec_geen_deb8_operating_mode') | default('?') }} |
+      | Fase A | {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.marstek_venuse_d828_operating_mode') | default('?') }} |
+      | Fase B | {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') | default('?') }} |
+      | Fase C | {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.marstek_venuse_operating_mode') | default('?') }} |
 
   # Automatische Selectie
   - type: entities
