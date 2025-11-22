@@ -45,7 +45,7 @@ mqtt:
 
 polling:
   interval_seconds: 180      # Poll interval (3 minuten)
-  timeout_seconds: 3         # Timeout per batterij (kort = geen lockups)
+  timeout_seconds: 5         # Timeout per batterij
 
 # API Configuratie
 # ----------------
