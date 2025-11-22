@@ -8,10 +8,21 @@ cards:
       **Actieve Batterij:** {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
 
       **P1 Meter:** {{ states('sensor.p1_meter_power') }}W
-      {% if states('sensor.p1_meter_power')|float < 0 %}
+      {% set p1 = states('sensor.p1_meter_power')|float(0) %}
+      {% if p1 < -200 %}
       → ☀️ Teruglevering
-      {% else %}
+      {% set zone_sensor = states.binary_sensor.marstek_solar_excess_zone %}
+      {% if zone_sensor and zone_sensor.state == 'on' %}
+      🕐 **{{ ((now() - zone_sensor.last_changed).total_seconds() / 60)|round(1) }} min** onder -200W (trigger: 2 min)
+      {% endif %}
+      {% elif p1 > 200 %}
       → ⚡ Verbruik
+      {% set zone_sensor = states.binary_sensor.marstek_grid_consumption_zone %}
+      {% if zone_sensor and zone_sensor.state == 'on' %}
+      🕐 **{{ ((now() - zone_sensor.last_changed).total_seconds() / 60)|round(1) }} min** boven +200W (trigger: 2 min)
+      {% endif %}
+      {% else %}
+      → ⚖️ Binnen drempel (-200W tot +200W)
       {% endif %}
 
       **Laatste Switch:** {{ as_timestamp(states('input_datetime.last_battery_switch')) | timestamp_custom('%H:%M', true) }}

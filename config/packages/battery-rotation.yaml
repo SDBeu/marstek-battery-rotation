@@ -85,6 +85,18 @@ template:
           p1_power: "{{ states('sensor.p1_meter_power') }}W"
           last_switch: "{{ states('input_datetime.last_battery_switch') }}"
 
+  # Binary sensors voor threshold tracking (timer in dashboard)
+  - binary_sensor:
+      - name: "Marstek Solar Excess Zone"
+        unique_id: marstek_solar_excess_zone
+        state: "{{ states('sensor.p1_meter_power')|float(0) < -200 }}"
+        icon: "{{ 'mdi:solar-power' if this.state == 'on' else 'mdi:solar-power-variant' }}"
+
+      - name: "Marstek Grid Consumption Zone"
+        unique_id: marstek_grid_consumption_zone
+        state: "{{ states('sensor.p1_meter_power')|float(0) > 200 }}"
+        icon: "{{ 'mdi:transmission-tower' if this.state == 'on' else 'mdi:transmission-tower-off' }}"
+
 # ============================================================================
 # INPUT HELPERS
 # Tracking en configuratie
