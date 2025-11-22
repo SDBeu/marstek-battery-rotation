@@ -108,16 +108,8 @@ cards:
   - type: entities
     title: ⚙️ Instellingen
     entities:
-      - entity: input_number.battery_switch_hysteresis_solar
-        name: Hysteresis Zon
-      - entity: input_number.battery_switch_hysteresis_grid
-        name: Hysteresis Net
-      - entity: input_number.trigger_delay_solar
-        name: Trigger Delay Zon
-      - entity: input_number.trigger_delay_grid
-        name: Trigger Delay Net
       - entity: input_number.battery_switch_delay_minutes
-        name: Switch Delay
+        name: Min. Tijd Tussen Switches
       - entity: input_number.battery_min_soc_discharge
         name: Min SOC Ontladen
       - entity: input_number.battery_max_soc_charge
