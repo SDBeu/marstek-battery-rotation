@@ -117,24 +117,6 @@ input_number:
     unit_of_measurement: "min"
     icon: mdi:timer-sand
 
-  battery_min_soc_discharge:
-    name: "Minimale SOC voor Ontladen"
-    min: 5
-    max: 30
-    step: 5
-    initial: 15
-    unit_of_measurement: "%"
-    icon: mdi:battery-low
-
-  battery_max_soc_charge:
-    name: "Maximale SOC voor Laden"
-    min: 70
-    max: 100
-    step: 5
-    initial: 90
-    unit_of_measurement: "%"
-    icon: mdi:battery-high
-
 input_datetime:
   last_battery_switch:
     name: "Laatste Batterij Switch"
@@ -242,11 +224,6 @@ automation:
       - condition: template
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_emptiest') }}
-
-      # Leegste batterij heeft nog ruimte om te laden
-      - condition: template
-        value_template: >
-          {{ state_attr('sensor.battery_emptiest', 'soc')|float(100) < states('input_number.battery_max_soc_charge')|float(90) }}
 
     action:
       # Notificatie
@@ -366,11 +343,6 @@ automation:
       - condition: template
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
-
-      # Volste batterij heeft nog genoeg lading
-      - condition: template
-        value_template: >
-          {{ state_attr('sensor.battery_fullest', 'soc')|float(0) > states('input_number.battery_min_soc_discharge')|float(15) }}
 
     action:
       # Notificatie

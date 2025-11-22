@@ -149,10 +149,6 @@ cards:
     entities:
       - entity: input_number.battery_switch_delay_minutes
         name: Min. Tijd Tussen Switches
-      - entity: input_number.battery_min_soc_discharge
-        name: Min SOC Ontladen
-      - entity: input_number.battery_max_soc_charge
-        name: Max SOC Laden
       - type: divider
       - entity: input_datetime.night_mode_start_time
         name: Nachtmodus Start
