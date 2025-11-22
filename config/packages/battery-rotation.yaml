@@ -176,6 +176,7 @@ automation:
       - service: button.press
         target:
           entity_id: button.fasea_schuin_d828_auto_mode
+        continue_on_error: true
 
       # Wacht op stabilisatie
       - delay:
@@ -187,6 +188,7 @@ automation:
           entity_id:
             - button.faseb_plat_v3_9a7d_manual_mode
             - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
 
       # Update tracking
       - service: input_text.set_value
@@ -253,6 +255,7 @@ automation:
               - service: button.press
                 target:
                   entity_id: button.fasea_schuin_d828_auto_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -261,6 +264,7 @@ automation:
               - service: button.press
                 target:
                   entity_id: button.faseb_plat_v3_9a7d_auto_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -269,6 +273,7 @@ automation:
               - service: button.press
                 target:
                   entity_id: button.fasec_geen_deb8_auto_mode
+                continue_on_error: true
 
       # Wacht op stabilisatie
       - delay:
@@ -285,6 +290,7 @@ automation:
                   entity_id:
                     - button.faseb_plat_v3_9a7d_manual_mode
                     - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -295,6 +301,7 @@ automation:
                   entity_id:
                     - button.fasea_schuin_d828_manual_mode
                     - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -305,6 +312,7 @@ automation:
                   entity_id:
                     - button.fasea_schuin_d828_manual_mode
                     - button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
 
       # Update tracking
       - service: input_text.set_value
@@ -371,6 +379,7 @@ automation:
               - service: button.press
                 target:
                   entity_id: button.fasea_schuin_d828_auto_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -379,6 +388,7 @@ automation:
               - service: button.press
                 target:
                   entity_id: button.faseb_plat_v3_9a7d_auto_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -387,6 +397,7 @@ automation:
               - service: button.press
                 target:
                   entity_id: button.fasec_geen_deb8_auto_mode
+                continue_on_error: true
 
       # Wacht op stabilisatie
       - delay:
@@ -403,6 +414,7 @@ automation:
                   entity_id:
                     - button.faseb_plat_v3_9a7d_manual_mode
                     - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -413,6 +425,7 @@ automation:
                   entity_id:
                     - button.fasea_schuin_d828_manual_mode
                     - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
 
           - conditions:
               - condition: template
@@ -423,6 +436,7 @@ automation:
                   entity_id:
                     - button.fasea_schuin_d828_manual_mode
                     - button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
 
       # Update tracking
       - service: input_text.set_value
@@ -492,6 +506,7 @@ script:
       - service: button.press
         target:
           entity_id: button.fasea_schuin_d828_auto_mode
+        continue_on_error: true
       # Wacht op stabilisatie
       - delay:
           seconds: 5
@@ -501,6 +516,7 @@ script:
           entity_id:
             - button.faseb_plat_v3_9a7d_manual_mode
             - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
       # Update tracking
       - service: input_text.set_value
         target:
@@ -525,6 +541,7 @@ script:
       - service: button.press
         target:
           entity_id: button.faseb_plat_v3_9a7d_auto_mode
+        continue_on_error: true
       # Wacht op stabilisatie
       - delay:
           seconds: 5
@@ -534,6 +551,7 @@ script:
           entity_id:
             - button.fasea_schuin_d828_manual_mode
             - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
       # Update tracking
       - service: input_text.set_value
         target:
@@ -558,6 +576,7 @@ script:
       - service: button.press
         target:
           entity_id: button.fasec_geen_deb8_auto_mode
+        continue_on_error: true
       # Wacht op stabilisatie
       - delay:
           seconds: 5
@@ -567,6 +586,7 @@ script:
           entity_id:
             - button.fasea_schuin_d828_manual_mode
             - button.faseb_plat_v3_9a7d_manual_mode
+        continue_on_error: true
       # Update tracking
       - service: input_text.set_value
         target:
@@ -594,6 +614,7 @@ script:
             - button.fasea_schuin_d828_auto_mode
             - button.faseb_plat_v3_9a7d_auto_mode
             - button.fasec_geen_deb8_auto_mode
+        continue_on_error: true
 
   # Zet alle batterijen naar Manual (emergency stop)
   marstek_all_batteries_manual:
@@ -605,6 +626,7 @@ script:
             - button.fasea_schuin_d828_manual_mode
             - button.faseb_plat_v3_9a7d_manual_mode
             - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
       - service: notify.persistent_notification
         data:
           title: "🛑 Marstek - Emergency Stop"
