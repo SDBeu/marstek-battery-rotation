@@ -246,7 +246,7 @@ automation:
     trigger:
       - platform: numeric_state
         entity_id: sensor.p1_meter_power
-        below: -500  # Teruglevering > 500W (negatief = teruglevering)
+        below: -200  # Teruglevering > 200W (negatief = teruglevering)
         for:
           minutes: 2  # Moet 2 minuten aanhouden
     condition:
