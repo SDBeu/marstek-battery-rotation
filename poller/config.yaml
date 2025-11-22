@@ -32,10 +32,10 @@ batteries:
 # Pas aan naar jouw MQTT broker (vaak Mosquitto op Home Assistant)
 
 mqtt:
-  host: "localhost"          # IP of hostname van MQTT broker
+  host: "core-mosquitto"     # IP of hostname van MQTT broker (core-mosquitto voor HA add-on)
   port: 1883                 # MQTT port (default: 1883)
-  username: ""               # MQTT username (leeg = geen auth)
-  password: ""               # MQTT password
+  username: "marstek"        # MQTT username
+  password: "marstek"        # MQTT password
   discovery_prefix: "homeassistant"  # HA auto-discovery prefix
   state_topic_prefix: "marstek"      # Topic prefix voor state updates
 

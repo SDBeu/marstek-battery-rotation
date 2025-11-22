@@ -108,7 +108,15 @@ class MarstekPoller:
 
         mqtt_config = self.config.get("mqtt", {})
 
-        self.mqtt_client = mqtt.Client(client_id="marstek_poller")
+        # Use CallbackAPIVersion.VERSION2 to avoid deprecation warning
+        try:
+            self.mqtt_client = mqtt.Client(
+                client_id="marstek_poller",
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION2
+            )
+        except (AttributeError, TypeError):
+            # Fallback for older paho-mqtt versions
+            self.mqtt_client = mqtt.Client(client_id="marstek_poller")
 
         # Set callbacks
         self.mqtt_client.on_connect = self._on_mqtt_connect
@@ -142,19 +150,23 @@ class MarstekPoller:
             self.logger.error(f"MQTT connection failed: {e}")
             return False
 
-    def _on_mqtt_connect(self, client, userdata, flags, rc):
-        """MQTT connect callback."""
-        if rc == 0:
+    def _on_mqtt_connect(self, client, userdata, flags, reason_code, properties=None):
+        """MQTT connect callback (VERSION2 compatible)."""
+        # reason_code is 0 or ReasonCode object with value 0 on success
+        rc_value = int(reason_code) if hasattr(reason_code, '__int__') else reason_code
+        if rc_value == 0:
             self.mqtt_connected = True
             self.logger.info("Connected to MQTT broker")
             # Publish discovery configs
             self._publish_discovery()
         else:
-            self.logger.error(f"MQTT connection failed with code {rc}")
+            self.logger.error(f"MQTT connection failed with code {rc_value}")
 
-    def _on_mqtt_disconnect(self, client, userdata, rc):
-        """MQTT disconnect callback."""
+    def _on_mqtt_disconnect(self, client, userdata, flags_or_rc, reason_code=None, properties=None):
+        """MQTT disconnect callback (VERSION2 compatible)."""
         self.mqtt_connected = False
+        # Handle both VERSION1 (rc as 3rd param) and VERSION2 (reason_code as 4th param)
+        rc = reason_code if reason_code is not None else flags_or_rc
         self.logger.warning(f"Disconnected from MQTT broker (rc={rc})")
 
     def _publish_discovery(self):
@@ -447,7 +459,7 @@ def main():
             else:
                 print(f"  ❌ No response")
             # Delay between tests to allow socket port to be fully released
-            time.sleep(0.5)
+            time.sleep(1.0)
         print("\n=== TEST COMPLETE ===")
         return
 
