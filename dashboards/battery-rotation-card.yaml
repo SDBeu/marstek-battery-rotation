@@ -23,51 +23,59 @@ cards:
       - entity: input_boolean.battery_rotation_enabled
         name: Batterij Rotatie
 
-  # SOC Overzicht
+  # SOC Overzicht met Status
   - type: horizontal-stack
     cards:
-      - type: gauge
-        entity: sensor.marstek_venuse_d828_state_of_charge
-        name: Fase A (schuin)
-        min: 0
-        max: 100
-        severity:
-          green: 50
-          yellow: 20
-          red: 0
-        needle: true
+      - type: vertical-stack
+        cards:
+          - type: gauge
+            entity: sensor.marstek_venuse_d828_state_of_charge
+            name: Fase A (schuin)
+            min: 0
+            max: 100
+            severity:
+              green: 50
+              yellow: 20
+              red: 0
+            needle: true
+          - type: markdown
+            content: >
+              {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
+              {{ states('sensor.marstek_venuse_d828_operating_mode') | default('?') }}
 
-      - type: gauge
-        entity: sensor.marstek_venuse_3_0_9a7d_state_of_charge
-        name: Fase B (plat)
-        min: 0
-        max: 100
-        severity:
-          green: 50
-          yellow: 20
-          red: 0
-        needle: true
+      - type: vertical-stack
+        cards:
+          - type: gauge
+            entity: sensor.marstek_venuse_3_0_9a7d_state_of_charge
+            name: Fase B (plat)
+            min: 0
+            max: 100
+            severity:
+              green: 50
+              yellow: 20
+              red: 0
+            needle: true
+          - type: markdown
+            content: >
+              {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
+              {{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') | default('?') }}
 
-      - type: gauge
-        entity: sensor.marstek_venuse_state_of_charge
-        name: Fase C (geen)
-        min: 0
-        max: 100
-        severity:
-          green: 50
-          yellow: 20
-          red: 0
-        needle: true
-
-  # Batterij Status (Online/Offline + Mode)
-  - type: markdown
-    title: 📡 Batterij Status
-    content: |
-      | Batterij | Status | Mode |
-      |----------|--------|------|
-      | Fase A | {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.marstek_venuse_d828_operating_mode') | default('?') }} |
-      | Fase B | {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') | default('?') }} |
-      | Fase C | {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢 Online{% else %}🔴 Offline{% endif %} | {{ states('sensor.marstek_venuse_operating_mode') | default('?') }} |
+      - type: vertical-stack
+        cards:
+          - type: gauge
+            entity: sensor.marstek_venuse_state_of_charge
+            name: Fase C (geen)
+            min: 0
+            max: 100
+            severity:
+              green: 50
+              yellow: 20
+              red: 0
+            needle: true
+          - type: markdown
+            content: >
+              {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
+              {{ states('sensor.marstek_venuse_operating_mode') | default('?') }}
 
   # Automatische Selectie
   - type: entities
