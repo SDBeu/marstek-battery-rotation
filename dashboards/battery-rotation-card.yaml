@@ -175,8 +175,23 @@ cards:
         name: Gewenste Capaciteit bij Dagstart
       - type: divider
       - entity: sensor.marstek_capacity_deficit
-        name: Te Laden (deficit)
+        name: Batterij Deficit
       - entity: sensor.marstek_night_hours
         name: Nachtmodus Duur
+
+  # Zonnevoorspelling
+  - type: entities
+    title: ☀️ PV Voorspelling Morgen
+    entities:
+      - entity: input_number.pv_production_per_sunny_hour
+        name: Productie per Zonuur
+      - entity: sensor.marstek_sunny_hours_tomorrow
+        name: Zonuren Morgen
+      - entity: sensor.marstek_expected_pv_tomorrow
+        name: Verwachte PV Productie
+      - type: divider
+      - entity: sensor.marstek_net_charging_deficit
+        name: Netto Te Laden
+        icon: mdi:battery-charging-outline
       - entity: sensor.marstek_required_charging_power
         name: Benodigd Laadvermogen
