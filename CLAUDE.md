@@ -2,6 +2,14 @@
 
 > **📋 Zie [ROADMAP.md](./ROADMAP.md) voor het volledige stappenplan, status tracking en session logs**
 
+## Huidige Setup (November 2024)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **SOC Data** | ✅ Actief | HA Marstek Local API integratie ([ha-marstek-local-api](https://github.com/jaapp/ha-marstek-local-api)) |
+| **Batterij Rotatie** | ✅ Actief | `config/packages/battery-rotation.yaml` via symlink in HA |
+| **MQTT Poller** | ❌ Niet in gebruik | Gearchiveerd in `archive/poller/` (fallback optie) |
+
 ## Project Overview
 Dit project biedt een API interface voor het uitlezen en aansturen van een Marstek Venus E batterij via de Local API (UDP JSON-RPC). Het eindoel is een MQTT bridge voor Home Assistant integratie met support voor meerdere batterijen.
 
