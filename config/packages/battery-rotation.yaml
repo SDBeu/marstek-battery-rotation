@@ -168,10 +168,17 @@ template:
           {% set expected_pv = states('sensor.marstek_expected_pv_tomorrow')|float(0) %}
           {{ [0, deficit - expected_pv]|max|round(2) }}
 
-  # Trigger-based sensor voor zonuren morgen (update elke avond om 22:00)
+  # Trigger-based sensor voor zonuren morgen (update elk uur vanaf 17:00)
   - trigger:
       - platform: time
-        at: "22:00:00"
+        at:
+          - "17:00:00"
+          - "18:00:00"
+          - "19:00:00"
+          - "20:00:00"
+          - "21:00:00"
+          - "22:00:00"
+          - "23:00:00"
       - platform: homeassistant
         event: start
     action:
