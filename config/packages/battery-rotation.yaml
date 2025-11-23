@@ -621,11 +621,11 @@ automation:
           datetime: "{{ now().isoformat() }}"
 
   # --------------------------------------------------------------------------
-  # NIGHT MODE - Disable rotatie tijdens nacht laden
+  # NIGHT MODE - Multi-batterij nachtladen
   # --------------------------------------------------------------------------
   - id: marstek_night_charging
     alias: "Marstek: Night Charging"
-    description: "Laad leegste batterij tijdens nachtmodus tot gewenste capaciteit"
+    description: "Laad batterijen tijdens nachtmodus - verdeelt deficit over meerdere batterijen"
     trigger:
       - platform: time
         at: input_datetime.night_mode_start_time
@@ -635,95 +635,103 @@ automation:
         target:
           entity_id: input_boolean.battery_rotation_enabled
 
-      # Bereken variabelen
+      # Bereken laadplan - verdeelt deficit over batterijen (leegste eerst)
       - variables:
           deficit: "{{ states('sensor.marstek_capacity_deficit')|float(0) }}"
           expected_pv: "{{ states('sensor.marstek_expected_pv_tomorrow')|float(0) }}"
           net_deficit: "{{ states('sensor.marstek_net_charging_deficit')|float(0) }}"
-          power_needed: "{{ states('sensor.marstek_required_charging_power')|int(0) }}"
           sunny_hours: "{{ states('sensor.marstek_sunny_hours_tomorrow')|int(0) }}"
-          emptiest: "{{ states('sensor.battery_emptiest') }}"
+          night_hours: "{{ states('sensor.marstek_night_hours')|float(6) }}"
           night_end: "{{ states('input_datetime.day_mode_start_time')[:5] }}"
           night_start: "{{ states('input_datetime.night_mode_start_time')[:5] }}"
+          max_power: 2500
 
-      # Als netto deficit > 0: laad leegste batterij
+          # Bereken laadplan per batterij
+          charging_plan: >
+            {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
+            {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
+            {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
+            {% set avail_a = [5 - cap_a, 0]|max %}
+            {% set avail_b = [5 - cap_b, 0]|max %}
+            {% set avail_c = [5 - cap_c, 0]|max %}
+            {% set bats = [
+              {'id': 'a', 'name': 'Fase A', 'avail': avail_a, 'device_id': 'c1fbfff25b11fcecf3530135b0b08f2c'},
+              {'id': 'b', 'name': 'Fase B', 'avail': avail_b, 'device_id': '79ea26ebcb0b77cc1e4acd1cc5af41f6'},
+              {'id': 'c', 'name': 'Fase C', 'avail': avail_c, 'device_id': 'f15b9f6024d9a2b044ca90e77824a314'}
+            ] %}
+            {% set sorted_bats = bats | sort(attribute='avail', reverse=true) | list %}
+            {% set deficit_val = states('sensor.marstek_net_charging_deficit')|float(0) %}
+            {% set hours = states('sensor.marstek_night_hours')|float(6) %}
+            {% set ns = namespace(remaining=deficit_val, result=[]) %}
+            {% for bat in sorted_bats %}
+              {% set charge = [ns.remaining, bat.avail]|min %}
+              {% set power = [((charge / hours) * 1000)|int, 2500]|min if charge > 0.1 else 0 %}
+              {% set ns.remaining = [ns.remaining - charge, 0]|max %}
+              {% set ns.result = ns.result + [{'name': bat.name, 'device_id': bat.device_id, 'charge': charge|round(2), 'power': power}] %}
+            {% endfor %}
+            {{ ns.result }}
+
+      # Als netto deficit > 0: laad batterijen volgens plan
       - if:
           - condition: template
             value_template: "{{ net_deficit > 0 }}"
         then:
-          # Laad leegste batterij met schema
-          - choose:
-              # Fase A is leegst
-              - conditions:
-                  - condition: template
-                    value_template: "{{ emptiest == 'fase_a' }}"
-                sequence:
-                  - service: marstek_local_api.set_manual_schedule
-                    data:
-                      device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-                      time_num: 0
-                      start_time: "{{ night_start }}"
-                      end_time: "{{ night_end }}"
-                      power: "{{ -power_needed }}"
-                      enabled: true
-                    continue_on_error: true
-                  - service: button.press
-                    target:
-                      entity_id:
-                        - button.faseb_plat_v3_9a7d_manual_mode
-                        - button.fasec_geen_deb8_manual_mode
-                    continue_on_error: true
+          # Batterij 1 (meeste ruimte/leegst)
+          - if:
+              - condition: template
+                value_template: "{{ charging_plan[0].power > 0 }}"
+            then:
+              - service: marstek_local_api.set_manual_schedule
+                data:
+                  device_id: "{{ charging_plan[0].device_id }}"
+                  time_num: 0
+                  start_time: "{{ night_start }}"
+                  end_time: "{{ night_end }}"
+                  power: "{{ -charging_plan[0].power }}"
+                  enabled: true
+                continue_on_error: true
 
-              # Fase B is leegst
-              - conditions:
-                  - condition: template
-                    value_template: "{{ emptiest == 'fase_b' }}"
-                sequence:
-                  - service: marstek_local_api.set_manual_schedule
-                    data:
-                      device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-                      time_num: 0
-                      start_time: "{{ night_start }}"
-                      end_time: "{{ night_end }}"
-                      power: "{{ -power_needed }}"
-                      enabled: true
-                    continue_on_error: true
-                  - service: button.press
-                    target:
-                      entity_id:
-                        - button.fasea_schuin_d828_manual_mode
-                        - button.fasec_geen_deb8_manual_mode
-                    continue_on_error: true
+          # Batterij 2
+          - if:
+              - condition: template
+                value_template: "{{ charging_plan[1].power > 0 }}"
+            then:
+              - service: marstek_local_api.set_manual_schedule
+                data:
+                  device_id: "{{ charging_plan[1].device_id }}"
+                  time_num: 0
+                  start_time: "{{ night_start }}"
+                  end_time: "{{ night_end }}"
+                  power: "{{ -charging_plan[1].power }}"
+                  enabled: true
+                continue_on_error: true
 
-              # Fase C is leegst
-              - conditions:
-                  - condition: template
-                    value_template: "{{ emptiest == 'fase_c' }}"
-                sequence:
-                  - service: marstek_local_api.set_manual_schedule
-                    data:
-                      device_id: "f15b9f6024d9a2b044ca90e77824a314"
-                      time_num: 0
-                      start_time: "{{ night_start }}"
-                      end_time: "{{ night_end }}"
-                      power: "{{ -power_needed }}"
-                      enabled: true
-                    continue_on_error: true
-                  - service: button.press
-                    target:
-                      entity_id:
-                        - button.fasea_schuin_d828_manual_mode
-                        - button.faseb_plat_v3_9a7d_manual_mode
-                    continue_on_error: true
+          # Batterij 3
+          - if:
+              - condition: template
+                value_template: "{{ charging_plan[2].power > 0 }}"
+            then:
+              - service: marstek_local_api.set_manual_schedule
+                data:
+                  device_id: "{{ charging_plan[2].device_id }}"
+                  time_num: 0
+                  start_time: "{{ night_start }}"
+                  end_time: "{{ night_end }}"
+                  power: "{{ -charging_plan[2].power }}"
+                  enabled: true
+                continue_on_error: true
 
-          # Notificatie met laadinfo
+          # Notificatie met laadinfo per batterij
           - service: notify.persistent_notification
             data:
               title: "🌙 Marstek - Nachtladen"
               message: >
                 Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
-                Netto te laden: {{ net_deficit }} kWh @ {{ power_needed }}W
-                Batterij: {{ emptiest | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+                Netto te laden: {{ net_deficit }} kWh
+
+                {% for bat in charging_plan if bat.power > 0 %}
+                {{ bat.name }}: {{ bat.charge }} kWh @ {{ bat.power }}W
+                {% endfor %}
                 Periode: {{ night_start }} - {{ night_end }}
 
         # Geen netto deficit: alles naar Manual
