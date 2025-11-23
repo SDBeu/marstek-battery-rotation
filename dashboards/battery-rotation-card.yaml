@@ -166,3 +166,17 @@ cards:
         name: Nachtmodus Start
       - entity: input_datetime.day_mode_start_time
         name: Dagmodus Start
+
+  # Nachtladen
+  - type: entities
+    title: 🌙 Nachtladen
+    entities:
+      - entity: input_number.desired_total_capacity
+        name: Gewenste Capaciteit bij Dagstart
+      - type: divider
+      - entity: sensor.marstek_capacity_deficit
+        name: Te Laden (deficit)
+      - entity: sensor.marstek_night_hours
+        name: Nachtmodus Duur
+      - entity: sensor.marstek_required_charging_power
+        name: Benodigd Laadvermogen

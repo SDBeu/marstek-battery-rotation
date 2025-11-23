@@ -97,6 +97,52 @@ template:
         state: "{{ states('sensor.p1_meter_power')|float(0) > 200 }}"
         icon: "{{ 'mdi:transmission-tower' if this.state == 'on' else 'mdi:transmission-tower-off' }}"
 
+  # Night charging sensors
+  - sensor:
+      - name: "Marstek Capacity Deficit"
+        unique_id: marstek_capacity_deficit
+        unit_of_measurement: "kWh"
+        icon: mdi:battery-alert
+        state: >
+          {% set desired = states('input_number.desired_total_capacity')|float(10) %}
+          {% set current = states('sensor.marstek_system_total_remaining_capacity_2')|float(0) %}
+          {{ [0, desired - current]|max|round(2) }}
+
+      - name: "Marstek Night Hours"
+        unique_id: marstek_night_hours
+        unit_of_measurement: "h"
+        icon: mdi:clock-time-eight
+        state: >
+          {% set night_start = states('input_datetime.night_mode_start_time') %}
+          {% set day_start = states('input_datetime.day_mode_start_time') %}
+          {% if night_start not in ['unknown', 'unavailable'] and day_start not in ['unknown', 'unavailable'] %}
+            {% set ns = strptime(night_start, '%H:%M:%S') %}
+            {% set ds = strptime(day_start, '%H:%M:%S') %}
+            {% set night_minutes = ns.hour * 60 + ns.minute %}
+            {% set day_minutes = ds.hour * 60 + ds.minute %}
+            {% if day_minutes > night_minutes %}
+              {{ ((day_minutes - night_minutes) / 60)|round(1) }}
+            {% else %}
+              {{ ((1440 - night_minutes + day_minutes) / 60)|round(1) }}
+            {% endif %}
+          {% else %}
+            6
+          {% endif %}
+
+      - name: "Marstek Required Charging Power"
+        unique_id: marstek_required_charging_power
+        unit_of_measurement: "W"
+        icon: mdi:flash
+        state: >
+          {% set deficit = states('sensor.marstek_capacity_deficit')|float(0) %}
+          {% set hours = states('sensor.marstek_night_hours')|float(6) %}
+          {% set max_power = 2500 %}
+          {% if hours > 0 and deficit > 0 %}
+            {{ [((deficit / hours) * 1000)|round(0), max_power]|min }}
+          {% else %}
+            0
+          {% endif %}
+
 # ============================================================================
 # INPUT HELPERS
 # Tracking en configuratie
@@ -116,6 +162,15 @@ input_number:
     initial: 5
     unit_of_measurement: "min"
     icon: mdi:timer-sand
+
+  desired_total_capacity:
+    name: "Gewenste Capaciteit bij Dagstart"
+    min: 0
+    max: 15
+    step: 0.5
+    initial: 10
+    unit_of_measurement: "kWh"
+    icon: mdi:battery-charging-high
 
 input_datetime:
   last_battery_switch:
@@ -387,9 +442,9 @@ automation:
   # --------------------------------------------------------------------------
   # NIGHT MODE - Disable rotatie tijdens nacht laden
   # --------------------------------------------------------------------------
-  - id: marstek_disable_rotation_at_night
-    alias: "Marstek: Disable Rotation at Night"
-    description: "Zet batterij rotatie UIT en alle batterijen naar Manual"
+  - id: marstek_night_charging
+    alias: "Marstek: Night Charging"
+    description: "Laad leegste batterij tijdens nachtmodus tot gewenste capaciteit"
     trigger:
       - platform: time
         at: input_datetime.night_mode_start_time
@@ -399,31 +454,132 @@ automation:
         target:
           entity_id: input_boolean.battery_rotation_enabled
 
-      # Zet alle batterijen naar Manual
-      - service: button.press
-        target:
-          entity_id:
-            - button.fasea_schuin_d828_manual_mode
-            - button.faseb_plat_v3_9a7d_manual_mode
-            - button.fasec_geen_deb8_manual_mode
-        continue_on_error: true
+      # Bereken variabelen
+      - variables:
+          deficit: "{{ states('sensor.marstek_capacity_deficit')|float(0) }}"
+          power_needed: "{{ states('sensor.marstek_required_charging_power')|int(0) }}"
+          emptiest: "{{ states('sensor.battery_emptiest') }}"
+          night_end: "{{ states('input_datetime.day_mode_start_time')[:5] }}"
+          night_start: "{{ states('input_datetime.night_mode_start_time')[:5] }}"
 
-      # Notificatie
-      - service: notify.persistent_notification
-        data:
-          title: "🌙 Marstek - Nachtmodus"
-          message: "Batterij rotatie UIT - Alle batterijen op Manual"
+      # Als deficit > 0: laad leegste batterij
+      - if:
+          - condition: template
+            value_template: "{{ deficit > 0 }}"
+        then:
+          # Laad leegste batterij met schema
+          - choose:
+              # Fase A is leegst
+              - conditions:
+                  - condition: template
+                    value_template: "{{ emptiest == 'fase_a' }}"
+                sequence:
+                  - service: marstek_local_api.set_manual_schedule
+                    data:
+                      device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                      time_num: 0
+                      start_time: "{{ night_start }}"
+                      end_time: "{{ night_end }}"
+                      power: "{{ -power_needed }}"
+                      enabled: true
+                    continue_on_error: true
+                  - service: button.press
+                    target:
+                      entity_id:
+                        - button.faseb_plat_v3_9a7d_manual_mode
+                        - button.fasec_geen_deb8_manual_mode
+                    continue_on_error: true
+
+              # Fase B is leegst
+              - conditions:
+                  - condition: template
+                    value_template: "{{ emptiest == 'fase_b' }}"
+                sequence:
+                  - service: marstek_local_api.set_manual_schedule
+                    data:
+                      device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                      time_num: 0
+                      start_time: "{{ night_start }}"
+                      end_time: "{{ night_end }}"
+                      power: "{{ -power_needed }}"
+                      enabled: true
+                    continue_on_error: true
+                  - service: button.press
+                    target:
+                      entity_id:
+                        - button.fasea_schuin_d828_manual_mode
+                        - button.fasec_geen_deb8_manual_mode
+                    continue_on_error: true
+
+              # Fase C is leegst
+              - conditions:
+                  - condition: template
+                    value_template: "{{ emptiest == 'fase_c' }}"
+                sequence:
+                  - service: marstek_local_api.set_manual_schedule
+                    data:
+                      device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                      time_num: 0
+                      start_time: "{{ night_start }}"
+                      end_time: "{{ night_end }}"
+                      power: "{{ -power_needed }}"
+                      enabled: true
+                    continue_on_error: true
+                  - service: button.press
+                    target:
+                      entity_id:
+                        - button.fasea_schuin_d828_manual_mode
+                        - button.faseb_plat_v3_9a7d_manual_mode
+                    continue_on_error: true
+
+          # Notificatie met laadinfo
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtladen"
+              message: >
+                Laden: {{ deficit }} kWh @ {{ power_needed }}W
+                Batterij: {{ emptiest | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+                Periode: {{ night_start }} - {{ night_end }}
+
+        # Geen deficit: alles naar Manual
+        else:
+          - service: button.press
+            target:
+              entity_id:
+                - button.fasea_schuin_d828_manual_mode
+                - button.faseb_plat_v3_9a7d_manual_mode
+                - button.fasec_geen_deb8_manual_mode
+            continue_on_error: true
+
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtmodus"
+              message: "Geen laden nodig - capaciteit OK. Alle batterijen op Manual."
 
   # --------------------------------------------------------------------------
   # MORNING MODE - Enable rotatie en start Fase A
   # --------------------------------------------------------------------------
   - id: marstek_enable_rotation_in_morning
     alias: "Marstek: Enable Rotation in Morning"
-    description: "Zet batterij rotatie AAN en activeer Fase A (configureerbaar)"
+    description: "Zet batterij rotatie AAN, clear nachtschema's en activeer Fase A"
     trigger:
       - platform: time
         at: input_datetime.day_mode_start_time
     action:
+      # Clear nacht laadschema's van alle batterijen
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+        continue_on_error: true
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+        continue_on_error: true
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"
+        continue_on_error: true
+
       # Zet rotatie systeem AAN
       - service: input_boolean.turn_on
         target:
