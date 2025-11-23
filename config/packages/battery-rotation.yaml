@@ -147,57 +147,6 @@ input_boolean:
 # ============================================================================
 automation:
   # --------------------------------------------------------------------------
-  # MORNING START - 07:00u start met Fase A
-  # --------------------------------------------------------------------------
-  - id: marstek_morning_battery_start
-    alias: "Marstek: Morning Battery A Start"
-    description: "Start met Fase A (schuin) om 07:00u 's morgens"
-    trigger:
-      - platform: time
-        at: "07:00:00"
-    condition:
-      - condition: state
-        entity_id: input_boolean.battery_rotation_enabled
-        state: "on"
-    action:
-      # Notificatie
-      - service: notify.persistent_notification
-        data:
-          title: "🌅 Marstek Batterij Rotatie"
-          message: "Dagstart - Activeer Fase A (schuin)"
-
-      # Eerst Fase A actief maken
-      - service: button.press
-        target:
-          entity_id: button.fasea_schuin_d828_auto_mode
-        continue_on_error: true
-
-      # Wacht op stabilisatie
-      - delay:
-          seconds: 5
-
-      # Dan pas andere batterijen deactiveren
-      - service: button.press
-        target:
-          entity_id:
-            - button.faseb_plat_v3_9a7d_manual_mode
-            - button.fasec_geen_deb8_manual_mode
-        continue_on_error: true
-
-      # Update tracking
-      - service: input_text.set_value
-        target:
-          entity_id: input_text.active_battery_fase
-        data:
-          value: "fase_a"
-
-      - service: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.last_battery_switch
-        data:
-          datetime: "{{ now().isoformat() }}"
-
-  # --------------------------------------------------------------------------
   # SOLAR EXCESS - Switch naar leegste batterij
   # --------------------------------------------------------------------------
   - id: marstek_solar_excess_switch
@@ -480,11 +429,42 @@ automation:
         target:
           entity_id: input_boolean.battery_rotation_enabled
 
+      # Activeer Fase A
+      - service: button.press
+        target:
+          entity_id: button.fasea_schuin_d828_auto_mode
+        continue_on_error: true
+
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+
+      # Deactiveer andere batterijen
+      - service: button.press
+        target:
+          entity_id:
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
+
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "fase_a"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
       # Notificatie
       - service: notify.persistent_notification
         data:
           title: "☀️ Marstek - Dagmodus"
-          message: "Batterij rotatie ingeschakeld - Systeem actief"
+          message: "Batterij rotatie AAN - Fase A geactiveerd"
 
 # ============================================================================
 # SCRIPTS
