@@ -47,6 +47,7 @@ cards:
             content: >
               {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
               {{ states('sensor.marstek_venuse_d828_operating_mode') | default('?') }}
+              | {% set cap = states('sensor.marstek_venuse_d828_remaining_capacity') %}{{ (cap | float | round(2)) ~ ' kWh' if cap not in ['unavailable', 'unknown'] else '?' }}
 
       - type: vertical-stack
         cards:
@@ -64,6 +65,7 @@ cards:
             content: >
               {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
               {{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') | default('?') }}
+              | {% set cap = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity') %}{{ (cap | float | round(2)) ~ ' kWh' if cap not in ['unavailable', 'unknown'] else '?' }}
 
       - type: vertical-stack
         cards:
@@ -81,6 +83,7 @@ cards:
             content: >
               {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
               {{ states('sensor.marstek_venuse_operating_mode') | default('?') }}
+              | {% set cap = states('sensor.marstek_venuse_remaining_capacity') %}{{ (cap | float | round(2)) ~ ' kWh' if cap not in ['unavailable', 'unknown'] else '?' }}
 
   # Automatische Selectie
   - type: entities
