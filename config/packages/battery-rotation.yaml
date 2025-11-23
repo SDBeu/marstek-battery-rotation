@@ -179,7 +179,7 @@ template:
         data:
           type: hourly
         target:
-          entity_id: weather.forecast_thuis
+          entity_id: weather.forecast_home
         response_variable: forecast
     sensor:
       - name: "Marstek Sunny Hours Tomorrow"
@@ -188,7 +188,7 @@ template:
         icon: mdi:weather-sunny
         state: >
           {% set tomorrow = (now() + timedelta(days=1)).date() %}
-          {% set forecasts = forecast['weather.forecast_thuis']['forecast'] | default([]) %}
+          {% set forecasts = forecast['weather.forecast_home']['forecast'] | default([]) %}
           {% set sunny_count = namespace(count=0) %}
           {% for f in forecasts %}
             {% set forecast_date = as_datetime(f.datetime).date() %}
