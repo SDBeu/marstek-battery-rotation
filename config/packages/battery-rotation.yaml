@@ -150,6 +150,75 @@ template:
             0
           {% endif %}
 
+      - name: "Marstek Estimated Charging Power"
+        unique_id: marstek_estimated_charging_power
+        unit_of_measurement: "W"
+        icon: mdi:flash-outline
+        state: >
+          {% set night_start_str = states('input_datetime.night_mode_start_time') %}
+          {% if night_start_str in ['unknown', 'unavailable'] %}
+            0
+          {% else %}
+            {% set night_start = strptime(night_start_str, '%H:%M:%S') %}
+            {% set night_hour = night_start.hour + night_start.minute / 60 %}
+            {% set current_hour = now().hour + now().minute / 60 %}
+            {# Uren tot nachtmodus (rekening houdend met middernacht) #}
+            {% if night_hour > current_hour %}
+              {% set hours_until_night = night_hour - current_hour %}
+            {% else %}
+              {% set hours_until_night = 24 - current_hour + night_hour %}
+            {% endif %}
+            {# Huidige ontlading (positief = ontladen) #}
+            {% set current_discharge = states('sensor.marstek_system_total_grid_power_2')|float(0) %}
+            {% set discharge_kwh = (current_discharge / 1000) * hours_until_night if current_discharge > 0 else 0 %}
+            {# Geschatte capaciteit bij nachtmodus start #}
+            {% set current_cap = states('sensor.marstek_system_total_remaining_capacity_2')|float(0) %}
+            {% set estimated_cap = [current_cap - discharge_kwh, 0]|max %}
+            {# Geschat deficit #}
+            {% set desired = states('input_number.desired_total_capacity')|float(10) %}
+            {% set expected_pv = states('sensor.marstek_expected_pv_tomorrow')|float(0) %}
+            {% set estimated_deficit = [desired - estimated_cap - expected_pv, 0]|max %}
+            {# Geschat laadvermogen #}
+            {% set night_hours = states('sensor.marstek_night_hours')|float(6) %}
+            {% set max_power = 2500 %}
+            {% if night_hours > 0 and estimated_deficit > 0 %}
+              {{ [((estimated_deficit / night_hours) * 1000)|round(0), max_power]|min }}
+            {% else %}
+              0
+            {% endif %}
+          {% endif %}
+        attributes:
+          hours_until_night: >
+            {% set night_start_str = states('input_datetime.night_mode_start_time') %}
+            {% if night_start_str in ['unknown', 'unavailable'] %}
+              0
+            {% else %}
+              {% set night_start = strptime(night_start_str, '%H:%M:%S') %}
+              {% set night_hour = night_start.hour + night_start.minute / 60 %}
+              {% set current_hour = now().hour + now().minute / 60 %}
+              {% if night_hour > current_hour %}
+                {{ (night_hour - current_hour)|round(1) }}
+              {% else %}
+                {{ (24 - current_hour + night_hour)|round(1) }}
+              {% endif %}
+            {% endif %}
+          estimated_discharge_kwh: >
+            {% set night_start_str = states('input_datetime.night_mode_start_time') %}
+            {% if night_start_str in ['unknown', 'unavailable'] %}
+              0
+            {% else %}
+              {% set night_start = strptime(night_start_str, '%H:%M:%S') %}
+              {% set night_hour = night_start.hour + night_start.minute / 60 %}
+              {% set current_hour = now().hour + now().minute / 60 %}
+              {% if night_hour > current_hour %}
+                {% set hours_until = night_hour - current_hour %}
+              {% else %}
+                {% set hours_until = 24 - current_hour + night_hour %}
+              {% endif %}
+              {% set current_discharge = states('sensor.marstek_system_total_grid_power_2')|float(0) %}
+              {{ ((current_discharge / 1000) * hours_until)|round(2) if current_discharge > 0 else 0 }}
+            {% endif %}
+
       - name: "Marstek Expected PV Tomorrow"
         unique_id: marstek_expected_pv_tomorrow
         unit_of_measurement: "kWh"
