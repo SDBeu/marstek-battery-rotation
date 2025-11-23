@@ -19,7 +19,7 @@ cards:
       → ⚖️ Binnen drempel
       {% endif %}
 
-      **Laatste Switch:** {{ as_timestamp(states('input_datetime.last_battery_switch')) | timestamp_custom('%H:%M', true) }}
+      **Laatste Switch:** {% set last_switch = states('input_datetime.last_battery_switch') %}{{ as_timestamp(last_switch) | timestamp_custom('%H:%M', true) if last_switch not in ['unknown', 'unavailable'] else '?' }}
 
   # Systeem aan/uit
   - type: entities
