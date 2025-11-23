@@ -96,31 +96,46 @@ homeassistant:
   packages: !include_dir_named packages
 ```
 
-### 3. Kopieer Configuratie
+### 3. Clone Repo & Maak Symlink
 ```bash
-# Kopieer battery-rotation.yaml naar:
-/config/packages/battery-rotation.yaml
+# Clone de repo naar je HA machine
+cd /homeassistant
+git clone https://github.com/SDBeu/marstek-battery-rotation.git
+
+# Maak packages folder aan (als deze niet bestaat)
+mkdir -p /homeassistant/packages
+
+# Maak symlink (config blijft automatisch in sync na git pull)
+ln -s /homeassistant/marstek-battery-rotation/config/packages/battery-rotation.yaml /homeassistant/packages/battery-rotation.yaml
 ```
 
-### 4. Pas Button Entity Names Aan
+### 4. Updates Binnenhalen
+Na een `git pull` wordt de config automatisch bijgewerkt via de symlink:
+```bash
+cd /homeassistant/marstek-battery-rotation
+git pull
+# Daarna in HA: Developer Tools → YAML → Reload All YAML
+```
+
+### 5. Pas Button Entity Names Aan
 Edit `battery-rotation.yaml` en vervang de button entity names met jouw batterijen:
 ```yaml
 # Vind jouw entity names in Developer Tools → States
 # Zoek naar: button.*marstek*
 ```
 
-### 5. Restart Home Assistant
+### 6. Restart Home Assistant
 ```
 Developer Tools → YAML → Restart
 ```
 
-### 6. Configureer Settings
+### 7. Configureer Settings
 Ga naar **Instellingen → Apparaten en diensten → Helpers** en pas aan:
 - Nachtmodus Start (bijv. 01:00)
 - Dagmodus Start (bijv. 07:00)
-- Trigger delays, hysteresis, etc.
+- Switch delay (min. tijd tussen switches)
 
-### 7. Installeer Dashboard (Optioneel)
+### 8. Installeer Dashboard (Optioneel)
 Kopieer `dashboards/battery-rotation-card.yaml` naar je Lovelace dashboard.
 
 ---
@@ -142,13 +157,10 @@ Kopieer `dashboards/battery-rotation-card.yaml` naar je Lovelace dashboard.
 
 | Setting | Default | Beschrijving |
 |---------|---------|--------------|
-| **Hysteresis Zon** | 500W | Min teruglevering voor switch |
-| **Hysteresis Net** | 200W | Min verbruik voor switch |
-| **Trigger Delay Zon** | 2 min | Hoe lang zonoverschot moet aanhouden |
-| **Trigger Delay Net** | 2 min | Hoe lang netverbruik moet aanhouden |
-| **Switch Delay** | 5 min | Min tijd tussen switches |
-| **Min SOC Ontladen** | 15% | Ontlaad niet onder dit percentage |
-| **Max SOC Laden** | 90% | Laad niet boven dit percentage |
+| **Drempel Teruglevering** | -200W | Trigger bij teruglevering > 200W |
+| **Drempel Verbruik** | +200W | Trigger bij verbruik > 200W |
+| **Trigger Delay** | 2 min | Hoe lang drempel moet aanhouden |
+| **Switch Delay** | 5 min | Min tijd tussen switches (instelbaar) |
 | **Nachtmodus Start** | 01:00 | Wanneer rotatie uitgaat |
 | **Dagmodus Start** | 07:00 | Wanneer rotatie aangaat |
 
