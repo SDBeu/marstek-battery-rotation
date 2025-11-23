@@ -193,5 +193,6 @@ cards:
       - entity: sensor.marstek_net_charging_deficit
         name: Netto Te Laden
         icon: mdi:battery-charging-outline
-      - entity: sensor.marstek_required_charging_power
-        name: Benodigd Laadvermogen
+      - entity: sensor.marstek_charging_plan
+        name: Laadplan Vannacht
+        icon: mdi:battery-charging-wireless

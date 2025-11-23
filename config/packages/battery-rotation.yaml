@@ -168,6 +168,76 @@ template:
           {% set expected_pv = states('sensor.marstek_expected_pv_tomorrow')|float(0) %}
           {{ [0, deficit - expected_pv]|max|round(2) }}
 
+      - name: "Marstek Charging Plan"
+        unique_id: marstek_charging_plan
+        icon: mdi:battery-charging-wireless
+        state: >
+          {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
+          {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
+          {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
+          {% set avail_a = [5 - cap_a, 0]|max %}
+          {% set avail_b = [5 - cap_b, 0]|max %}
+          {% set avail_c = [5 - cap_c, 0]|max %}
+          {% set bats = [
+            {'name': 'A', 'avail': avail_a},
+            {'name': 'B', 'avail': avail_b},
+            {'name': 'C', 'avail': avail_c}
+          ] %}
+          {% set sorted_bats = bats | sort(attribute='avail', reverse=true) | list %}
+          {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
+          {% set hours = states('sensor.marstek_night_hours')|float(6) %}
+          {% set ns = namespace(remaining=deficit, parts=[]) %}
+          {% for bat in sorted_bats %}
+            {% set charge = [ns.remaining, bat.avail]|min %}
+            {% if charge > 0.1 %}
+              {% set power = [((charge / hours) * 1000)|int, 2500]|min %}
+              {% set ns.parts = ns.parts + [bat.name ~ ':' ~ charge|round(1) ~ 'kWh@' ~ power ~ 'W'] %}
+            {% endif %}
+            {% set ns.remaining = [ns.remaining - charge, 0]|max %}
+          {% endfor %}
+          {{ ns.parts | join(' | ') if ns.parts else 'Geen laden nodig' }}
+        attributes:
+          fase_a_charge: >
+            {% set cap = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
+            {% set avail = [5 - cap, 0]|max %}
+            {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
+            {% set hours = states('sensor.marstek_night_hours')|float(6) %}
+            {% set all_avail = [
+              [5 - states('sensor.marstek_venuse_d828_remaining_capacity')|float(5), 0]|max,
+              [5 - states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5), 0]|max,
+              [5 - states('sensor.marstek_venuse_remaining_capacity')|float(5), 0]|max
+            ] | sort(reverse=true) %}
+            {% set my_rank = 0 if avail == all_avail[0] else (1 if avail == all_avail[1] else 2) %}
+            {% set before_me = all_avail[:my_rank] | sum %}
+            {% set remaining_for_me = [deficit - before_me, 0]|max %}
+            {{ [remaining_for_me, avail]|min|round(2) }}
+          fase_b_charge: >
+            {% set cap = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
+            {% set avail = [5 - cap, 0]|max %}
+            {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
+            {% set all_avail = [
+              [5 - states('sensor.marstek_venuse_d828_remaining_capacity')|float(5), 0]|max,
+              [5 - states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5), 0]|max,
+              [5 - states('sensor.marstek_venuse_remaining_capacity')|float(5), 0]|max
+            ] | sort(reverse=true) %}
+            {% set my_rank = 0 if avail == all_avail[0] else (1 if avail == all_avail[1] else 2) %}
+            {% set before_me = all_avail[:my_rank] | sum %}
+            {% set remaining_for_me = [deficit - before_me, 0]|max %}
+            {{ [remaining_for_me, avail]|min|round(2) }}
+          fase_c_charge: >
+            {% set cap = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
+            {% set avail = [5 - cap, 0]|max %}
+            {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
+            {% set all_avail = [
+              [5 - states('sensor.marstek_venuse_d828_remaining_capacity')|float(5), 0]|max,
+              [5 - states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5), 0]|max,
+              [5 - states('sensor.marstek_venuse_remaining_capacity')|float(5), 0]|max
+            ] | sort(reverse=true) %}
+            {% set my_rank = 0 if avail == all_avail[0] else (1 if avail == all_avail[1] else 2) %}
+            {% set before_me = all_avail[:my_rank] | sum %}
+            {% set remaining_for_me = [deficit - before_me, 0]|max %}
+            {{ [remaining_for_me, avail]|min|round(2) }}
+
   # Trigger-based sensor voor zonuren morgen (update elk uur vanaf 17:00)
   - trigger:
       - platform: time
