@@ -207,6 +207,110 @@ input_boolean:
 # ============================================================================
 automation:
   # --------------------------------------------------------------------------
+  # MANUAL TOGGLE OFF - Alle batterijen naar Manual
+  # --------------------------------------------------------------------------
+  - id: marstek_manual_toggle_off
+    alias: "Marstek: Manual Toggle OFF"
+    description: "Wanneer rotatie manueel uitgezet wordt, alle batterijen naar Manual"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.battery_rotation_enabled
+        to: "off"
+    action:
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
+
+      - service: notify.persistent_notification
+        data:
+          title: "🔴 Marstek - Rotatie UIT"
+          message: "Alle batterijen op Manual mode"
+
+  # --------------------------------------------------------------------------
+  # MANUAL TOGGLE ON - Volste batterij naar Auto
+  # --------------------------------------------------------------------------
+  - id: marstek_manual_toggle_on
+    alias: "Marstek: Manual Toggle ON"
+    description: "Wanneer rotatie manueel aangezet wordt, volste batterij naar Auto"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.battery_rotation_enabled
+        to: "on"
+    action:
+      - variables:
+          fullest: "{{ states('sensor.battery_fullest') }}"
+
+      # Activeer volste batterij
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_auto_mode
+                continue_on_error: true
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_auto_mode
+                continue_on_error: true
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_auto_mode
+                continue_on_error: true
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "{{ fullest }}"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+      - service: notify.persistent_notification
+        data:
+          title: "🟢 Marstek - Rotatie AAN"
+          message: >
+            Volste batterij geactiveerd: {{ fullest | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+
+  # --------------------------------------------------------------------------
   # SOLAR EXCESS - Switch naar leegste batterij
   # --------------------------------------------------------------------------
   - id: marstek_solar_excess_switch
