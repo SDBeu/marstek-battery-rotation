@@ -20,28 +20,29 @@
 template:
   - sensor:
       # Leegste batterij (voor laden bij zonoverschot)
+      # Bij unavailable: assume 100% (vol) zodat die niet geselecteerd wordt
       - name: "Battery Emptiest"
         unique_id: battery_emptiest_id
         state: >
           {% set batteries = [
-            {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
-            {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
-            {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+            {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(100)},
+            {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100)},
+            {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(100)}
           ] %}
           {{ (batteries | sort(attribute='soc') | first).name }}
         attributes:
           label: >
             {% set batteries = [
-              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
-              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
-              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(100)},
+              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100)},
+              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(100)}
             ] %}
             {{ (batteries | sort(attribute='soc') | first).label }}
           soc: >
             {% set batteries = [
-              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(0)},
-              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0)},
-              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(0)}
+              {'name': 'fase_a', 'label': 'Fase A (schuin)', 'soc': states('sensor.marstek_venuse_d828_state_of_charge')|float(100)},
+              {'name': 'fase_b', 'label': 'Fase B (plat)', 'soc': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100)},
+              {'name': 'fase_c', 'label': 'Fase C (geen)', 'soc': states('sensor.marstek_venuse_state_of_charge')|float(100)}
             ] %}
             {{ (batteries | sort(attribute='soc') | first).soc }}
 
@@ -105,7 +106,11 @@ template:
         icon: mdi:battery-alert
         state: >
           {% set desired = states('input_number.desired_total_capacity')|float(10) %}
-          {% set current = states('sensor.marstek_system_total_remaining_capacity_2')|float(0) %}
+          {# Bij unavailable: assume 5 kWh (vol) per batterij #}
+          {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
+          {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
+          {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
+          {% set current = cap_a + cap_b + cap_c %}
           {{ [0, desired - current]|max|round(2) }}
 
       - name: "Marstek Night Hours"
