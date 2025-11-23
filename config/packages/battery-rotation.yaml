@@ -440,7 +440,7 @@ automation:
   # --------------------------------------------------------------------------
   - id: marstek_disable_rotation_at_night
     alias: "Marstek: Disable Rotation at Night"
-    description: "Zet batterij rotatie UIT voor night charging (configureerbaar)"
+    description: "Zet batterij rotatie UIT en alle batterijen naar Manual"
     trigger:
       - platform: time
         at: input_datetime.night_mode_start_time
@@ -450,11 +450,20 @@ automation:
         target:
           entity_id: input_boolean.battery_rotation_enabled
 
+      # Zet alle batterijen naar Manual
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
+
       # Notificatie
       - service: notify.persistent_notification
         data:
           title: "🌙 Marstek - Nachtmodus"
-          message: "Batterij rotatie uitgeschakeld voor night charging (01:00-07:00)"
+          message: "Batterij rotatie UIT - Alle batterijen op Manual"
 
   # --------------------------------------------------------------------------
   # MORNING MODE - Enable rotatie en start Fase A
