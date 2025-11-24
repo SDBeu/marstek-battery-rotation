@@ -6,6 +6,10 @@ cards:
       ## 🔋 Marstek Batterij Rotatie
 
       **Actieve Batterij:** {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+      {% set overflow = states('input_text.overflow_battery_fase') %}
+      {% if overflow not in ['', 'unknown', 'unavailable'] %}
+      **Overflow:** {{ overflow|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }} ⚡
+      {% endif %}
 
       **P1 Meter:** {{ states('sensor.p1_meter_power') }}W
       {% set p1 = states('sensor.p1_meter_power')|float(0) %}
@@ -20,6 +24,21 @@ cards:
       {% endif %}
 
       **Laatste Switch:** {% set last_switch = states('input_datetime.last_battery_switch') %}{{ as_timestamp(last_switch) | timestamp_custom('%H:%M', true) if last_switch not in ['unknown', 'unavailable'] else '?' }}
+
+  # Overflow Charging Status (alleen zichtbaar bij actieve overflow)
+  - type: conditional
+    conditions:
+      - condition: template
+        value_template: "{{ states('input_text.overflow_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+    card:
+      type: markdown
+      content: |
+        ### ⚡ Overflow Charging Actief
+
+        **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+
+        Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
+        Stopt automatisch bij verbruik (P1 > 100W).
 
   # Systeem aan/uit
   - type: entities
