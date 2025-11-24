@@ -156,6 +156,37 @@ cards:
           action: call-service
           service: script.marstek_activate_fase_c
 
+  # Overflow Controle
+  - type: horizontal-stack
+    cards:
+      - type: button
+        name: Overflow A
+        icon: mdi:battery-plus
+        tap_action:
+          action: call-service
+          service: script.marstek_overflow_fase_a
+
+      - type: button
+        name: Overflow B
+        icon: mdi:battery-plus
+        tap_action:
+          action: call-service
+          service: script.marstek_overflow_fase_b
+
+      - type: button
+        name: Overflow C
+        icon: mdi:battery-plus
+        tap_action:
+          action: call-service
+          service: script.marstek_overflow_fase_c
+
+      - type: button
+        name: Stop
+        icon: mdi:battery-minus
+        tap_action:
+          action: call-service
+          service: script.marstek_overflow_stop
+
   # Emergency Stop
   - type: button
     name: 🛑 STOP - Alle naar Manual

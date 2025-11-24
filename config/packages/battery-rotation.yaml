@@ -1274,7 +1274,110 @@ script:
             - button.faseb_plat_v3_9a7d_manual_mode
             - button.fasec_geen_deb8_manual_mode
         continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: ""
       - service: notify.persistent_notification
         data:
           title: "🛑 Marstek - Emergency Stop"
           message: "Alle batterijen gezet naar Manual mode"
+
+  # Overflow charging scripts
+  marstek_overflow_fase_a:
+    alias: "Overflow Fase A"
+    sequence:
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+          power: -1500
+          duration: 1800
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: "fase_a"
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Handmatig"
+          message: "Fase A in Passive mode @ 1500W"
+
+  marstek_overflow_fase_b:
+    alias: "Overflow Fase B"
+    sequence:
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+          power: -1500
+          duration: 1800
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: "fase_b"
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Handmatig"
+          message: "Fase B in Passive mode @ 1500W"
+
+  marstek_overflow_fase_c:
+    alias: "Overflow Fase C"
+    sequence:
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"
+          power: -1500
+          duration: 1800
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: "fase_c"
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Handmatig"
+          message: "Fase C in Passive mode @ 1500W"
+
+  marstek_overflow_stop:
+    alias: "Stop Overflow"
+    sequence:
+      - variables:
+          overflow_bat: "{{ states('input_text.overflow_battery_fase') }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: ""
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Gestopt"
+          message: "Overflow charging handmatig gestopt"
