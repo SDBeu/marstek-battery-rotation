@@ -28,8 +28,10 @@ cards:
   # Overflow Charging Status (alleen zichtbaar bij actieve overflow)
   - type: conditional
     conditions:
-      - condition: template
-        value_template: "{{ states('input_text.overflow_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+      - entity: input_text.overflow_battery_fase
+        state_not: ""
+      - entity: input_text.overflow_battery_fase
+        state_not: "unknown"
     card:
       type: markdown
       content: |
