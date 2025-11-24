@@ -20,13 +20,15 @@
 template:
   - sensor:
       # Fase B remaining capacity (V3 firmware bug workaround)
-      # V3 firmware rapporteert remaining_capacity verkeerd, gebruik available_capacity
+      # V3 firmware: available = ruimte om te laden, dus remaining = rated - available
       - name: "Marstek Fase B Remaining Capacity"
         unique_id: marstek_fase_b_remaining_capacity
         unit_of_measurement: "kWh"
         icon: mdi:battery
         state: >
-          {{ states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(0) | round(2) }}
+          {% set rated = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5.12) %}
+          {% set available = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(0) %}
+          {{ (rated - available) | round(2) }}
 
       # Leegste batterij (voor laden bij zonoverschot)
       # Bij unavailable: assume 100% (vol) zodat die niet geselecteerd wordt
