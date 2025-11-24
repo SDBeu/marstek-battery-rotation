@@ -277,8 +277,6 @@ cards:
     entities:
       - entity: input_select.night_charging_mode
         name: Laadmodus
-      - entity: input_number.night_charging_power
-        name: Laadvermogen (Piekbewust)
       - type: divider
       - entity: input_number.desired_total_capacity
         name: Gewenste Capaciteit bij Dagstart
@@ -296,6 +294,9 @@ cards:
       type: entities
       title: 📊 Piekbewust Status
       entities:
+        - entity: input_number.night_charging_power
+          name: Laadvermogen
+        - type: divider
         - entity: sensor.marstek_safe_to_charge
           name: Veilig om te Laden
           icon: mdi:shield-check
