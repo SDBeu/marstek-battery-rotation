@@ -53,13 +53,13 @@ cards:
   - type: entities
     title: ⚡ Capaciteit
     entities:
-      - entity: sensor.marstek_venuse_d828_available_capacity
+      - entity: sensor.marstek_venuse_d828_remaining_capacity
         name: Fase A (schuin)
         icon: mdi:battery
-      - entity: sensor.marstek_venuse_3_0_9a7d_available_capacity
+      - entity: sensor.marstek_fase_b_remaining_capacity
         name: Fase B (plat)
         icon: mdi:battery
-      - entity: sensor.marstek_venuse_available_capacity
+      - entity: sensor.marstek_venuse_remaining_capacity
         name: Fase C (geen)
         icon: mdi:battery
       - type: divider
