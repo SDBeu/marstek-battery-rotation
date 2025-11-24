@@ -106,10 +106,10 @@ template:
         icon: mdi:battery-alert
         state: >
           {% set desired = states('input_number.desired_total_capacity')|float(10) %}
-          {# Bij unavailable: assume 5 kWh (vol) per batterij #}
-          {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
-          {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
-          {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
+          {# available_capacity = hoeveel er IN de batterij zit #}
+          {% set cap_a = states('sensor.marstek_venuse_d828_available_capacity')|float(5) %}
+          {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5) %}
+          {% set cap_c = states('sensor.marstek_venuse_available_capacity')|float(5) %}
           {% set current = cap_a + cap_b + cap_c %}
           {{ [0, desired - current]|max|round(2) }}
 
@@ -241,12 +241,16 @@ template:
         unique_id: marstek_charging_plan
         icon: mdi:battery-charging-wireless
         state: >
-          {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
-          {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
-          {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
-          {% set avail_a = [5 - cap_a, 0]|max %}
-          {% set avail_b = [5 - cap_b, 0]|max %}
-          {% set avail_c = [5 - cap_c, 0]|max %}
+          {# available = hoeveel IN batterij, rated = totale capaciteit #}
+          {% set cap_a = states('sensor.marstek_venuse_d828_available_capacity')|float(5) %}
+          {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5) %}
+          {% set cap_c = states('sensor.marstek_venuse_available_capacity')|float(5) %}
+          {% set rated_a = states('sensor.marstek_venuse_d828_rated_capacity')|float(5) %}
+          {% set rated_b = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5) %}
+          {% set rated_c = states('sensor.marstek_venuse_rated_capacity')|float(5) %}
+          {% set avail_a = [rated_a - cap_a, 0]|max %}
+          {% set avail_b = [rated_b - cap_b, 0]|max %}
+          {% set avail_c = [rated_c - cap_c, 0]|max %}
           {% set bats = [
             {'name': 'A', 'avail': avail_a},
             {'name': 'B', 'avail': avail_b},
@@ -267,40 +271,51 @@ template:
           {{ ns.parts | join(' | ') if ns.parts else 'Geen laden nodig' }}
         attributes:
           fase_a_charge: >
-            {% set cap = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
-            {% set avail = [5 - cap, 0]|max %}
+            {% set cap = states('sensor.marstek_venuse_d828_available_capacity')|float(5) %}
+            {% set rated = states('sensor.marstek_venuse_d828_rated_capacity')|float(5) %}
+            {% set avail = [rated - cap, 0]|max %}
             {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
-            {% set hours = states('sensor.marstek_night_hours')|float(6) %}
+            {% set rated_a = states('sensor.marstek_venuse_d828_rated_capacity')|float(5) %}
+            {% set rated_b = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5) %}
+            {% set rated_c = states('sensor.marstek_venuse_rated_capacity')|float(5) %}
             {% set all_avail = [
-              [5 - states('sensor.marstek_venuse_d828_remaining_capacity')|float(5), 0]|max,
-              [5 - states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5), 0]|max,
-              [5 - states('sensor.marstek_venuse_remaining_capacity')|float(5), 0]|max
+              [rated_a - states('sensor.marstek_venuse_d828_available_capacity')|float(5), 0]|max,
+              [rated_b - states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5), 0]|max,
+              [rated_c - states('sensor.marstek_venuse_available_capacity')|float(5), 0]|max
             ] | sort(reverse=true) %}
             {% set my_rank = 0 if avail == all_avail[0] else (1 if avail == all_avail[1] else 2) %}
             {% set before_me = all_avail[:my_rank] | sum %}
             {% set remaining_for_me = [deficit - before_me, 0]|max %}
             {{ [remaining_for_me, avail]|min|round(2) }}
           fase_b_charge: >
-            {% set cap = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
-            {% set avail = [5 - cap, 0]|max %}
+            {% set cap = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5) %}
+            {% set rated = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5) %}
+            {% set avail = [rated - cap, 0]|max %}
             {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
+            {% set rated_a = states('sensor.marstek_venuse_d828_rated_capacity')|float(5) %}
+            {% set rated_b = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5) %}
+            {% set rated_c = states('sensor.marstek_venuse_rated_capacity')|float(5) %}
             {% set all_avail = [
-              [5 - states('sensor.marstek_venuse_d828_remaining_capacity')|float(5), 0]|max,
-              [5 - states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5), 0]|max,
-              [5 - states('sensor.marstek_venuse_remaining_capacity')|float(5), 0]|max
+              [rated_a - states('sensor.marstek_venuse_d828_available_capacity')|float(5), 0]|max,
+              [rated_b - states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5), 0]|max,
+              [rated_c - states('sensor.marstek_venuse_available_capacity')|float(5), 0]|max
             ] | sort(reverse=true) %}
             {% set my_rank = 0 if avail == all_avail[0] else (1 if avail == all_avail[1] else 2) %}
             {% set before_me = all_avail[:my_rank] | sum %}
             {% set remaining_for_me = [deficit - before_me, 0]|max %}
             {{ [remaining_for_me, avail]|min|round(2) }}
           fase_c_charge: >
-            {% set cap = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
-            {% set avail = [5 - cap, 0]|max %}
+            {% set cap = states('sensor.marstek_venuse_available_capacity')|float(5) %}
+            {% set rated = states('sensor.marstek_venuse_rated_capacity')|float(5) %}
+            {% set avail = [rated - cap, 0]|max %}
             {% set deficit = states('sensor.marstek_net_charging_deficit')|float(0) %}
+            {% set rated_a = states('sensor.marstek_venuse_d828_rated_capacity')|float(5) %}
+            {% set rated_b = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5) %}
+            {% set rated_c = states('sensor.marstek_venuse_rated_capacity')|float(5) %}
             {% set all_avail = [
-              [5 - states('sensor.marstek_venuse_d828_remaining_capacity')|float(5), 0]|max,
-              [5 - states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5), 0]|max,
-              [5 - states('sensor.marstek_venuse_remaining_capacity')|float(5), 0]|max
+              [rated_a - states('sensor.marstek_venuse_d828_available_capacity')|float(5), 0]|max,
+              [rated_b - states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5), 0]|max,
+              [rated_c - states('sensor.marstek_venuse_available_capacity')|float(5), 0]|max
             ] | sort(reverse=true) %}
             {% set my_rank = 0 if avail == all_avail[0] else (1 if avail == all_avail[1] else 2) %}
             {% set before_me = all_avail[:my_rank] | sum %}
@@ -820,14 +835,17 @@ automation:
           night_start: "{{ states('input_datetime.night_mode_start_time')[:5] }}"
           max_power: 2500
 
-          # Bereken laadplan per batterij
+          # Bereken laadplan per batterij (available = IN batterij, rated = totaal)
           charging_plan: >
-            {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(5) %}
-            {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_remaining_capacity')|float(5) %}
-            {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(5) %}
-            {% set avail_a = [5 - cap_a, 0]|max %}
-            {% set avail_b = [5 - cap_b, 0]|max %}
-            {% set avail_c = [5 - cap_c, 0]|max %}
+            {% set cap_a = states('sensor.marstek_venuse_d828_available_capacity')|float(5) %}
+            {% set cap_b = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(5) %}
+            {% set cap_c = states('sensor.marstek_venuse_available_capacity')|float(5) %}
+            {% set rated_a = states('sensor.marstek_venuse_d828_rated_capacity')|float(5) %}
+            {% set rated_b = states('sensor.marstek_venuse_3_0_9a7d_rated_capacity')|float(5) %}
+            {% set rated_c = states('sensor.marstek_venuse_rated_capacity')|float(5) %}
+            {% set avail_a = [rated_a - cap_a, 0]|max %}
+            {% set avail_b = [rated_b - cap_b, 0]|max %}
+            {% set avail_c = [rated_c - cap_c, 0]|max %}
             {% set bats = [
               {'id': 'a', 'name': 'Fase A', 'avail': avail_a, 'device_id': 'c1fbfff25b11fcecf3530135b0b08f2c'},
               {'id': 'b', 'name': 'Fase B', 'avail': avail_b, 'device_id': '79ea26ebcb0b77cc1e4acd1cc5af41f6'},
