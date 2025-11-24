@@ -1,367 +1,450 @@
-type: vertical-stack
-cards:
-  # Status Header
-  - type: markdown
-    content: |
-      ## 🔋 Marstek Batterij Rotatie
-
-      **Actieve Batterij:** {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
-      {% set overflow = states('input_text.overflow_battery_fase') %}
-      {% if overflow not in ['', 'unknown', 'unavailable'] %}
-      **Overflow:** {{ overflow|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }} ⚡
-      {% endif %}
-
-      **P1 Meter:** {{ states('sensor.p1_meter_power') }}W
-      {% set p1 = states('sensor.p1_meter_power')|float(0) %}
-      {% if p1 < -200 %}
-      {% set sensor = states.binary_sensor.marstek_solar_excess_zone %}
-      → ☀️ Teruglevering | 🕐 **{{ (as_timestamp(now()) - as_timestamp(sensor.last_changed))|int if sensor else '?' }}s** / 120s
-      {% elif p1 > 200 %}
-      {% set sensor = states.binary_sensor.marstek_grid_consumption_zone %}
-      → ⚡ Verbruik | 🕐 **{{ (as_timestamp(now()) - as_timestamp(sensor.last_changed))|int if sensor else '?' }}s** / 120s
-      {% else %}
-      → ⚖️ Binnen drempel
-      {% endif %}
-
-      **Laatste Switch:** {% set last_switch = states('input_datetime.last_battery_switch') %}{{ as_timestamp(last_switch) | timestamp_custom('%H:%M', true) if last_switch not in ['unknown', 'unavailable'] else '?' }}
-
-  # Overflow Charging Status (alleen zichtbaar bij actieve overflow)
-  - type: conditional
-    conditions:
-      - entity: input_text.overflow_battery_fase
-        state_not: ""
-      - entity: input_text.overflow_battery_fase
-        state_not: "unknown"
+type: custom:tabbed-card
+options:
+  styles:
+    '--mdc-theme-primary': '#2196F3'
+    '--mdc-tab-text-label-color-default': '#888888'
+tabs:
+  # ==========================================================================
+  # TAB 1: STATUS - Real-time Monitoring
+  # ==========================================================================
+  - attributes:
+      label: Status
+      icon: mdi:information-outline
     card:
       type: vertical-stack
       cards:
+        # Status Header
         - type: markdown
           content: |
-            ### ⚡ Overflow Charging Actief
+            ## 🔋 Marstek Batterij Rotatie
 
-            **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+            **Actieve Batterij:** {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+            {% set overflow = states('input_text.overflow_battery_fase') %}
+            {% if overflow not in ['', 'unknown', 'unavailable'] %}
+            **Overflow:** {{ overflow|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }} ⚡
+            {% endif %}
+            {% set peak_assist = states('input_text.peak_assist_battery_fase') %}
+            {% if peak_assist not in ['', 'unknown', 'unavailable'] %}
+            **Peak Assist:** {{ peak_assist|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }} ⚡
+            {% endif %}
 
-            Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
-            Stopt automatisch bij verbruik (P1 > 100W).
+            **P1 Meter:** {{ states('sensor.p1_meter_power') }}W
+            {% set p1 = states('sensor.p1_meter_power')|float(0) %}
+            {% if p1 < -200 %}
+            {% set sensor = states.binary_sensor.marstek_solar_excess_zone %}
+            → ☀️ Teruglevering | 🕐 **{{ (as_timestamp(now()) - as_timestamp(sensor.last_changed))|int if sensor else '?' }}s** / 120s
+            {% elif p1 > 200 %}
+            {% set sensor = states.binary_sensor.marstek_grid_consumption_zone %}
+            → ⚡ Verbruik | 🕐 **{{ (as_timestamp(now()) - as_timestamp(sensor.last_changed))|int if sensor else '?' }}s** / 120s
+            {% else %}
+            → ⚖️ Binnen drempel
+            {% endif %}
 
+            **Laatste Switch:** {% set last_switch = states('input_datetime.last_battery_switch') %}{{ as_timestamp(last_switch) | timestamp_custom('%H:%M', true) if last_switch not in ['unknown', 'unavailable'] else '?' }}
+
+        # Overflow Charging Status (conditional)
+        - type: conditional
+          conditions:
+            - entity: input_text.overflow_battery_fase
+              state_not: ""
+            - entity: input_text.overflow_battery_fase
+              state_not: "unknown"
+          card:
+            type: vertical-stack
+            cards:
+              - type: markdown
+                content: |
+                  ### ⚡ Overflow Charging Actief
+
+                  **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+
+                  Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
+                  Stopt automatisch bij verbruik (P1 > 100W).
+
+              - type: entities
+                entities:
+                  - entity: timer.overflow_charging_timer
+                    name: Resterende Tijd
+
+        # Peak Assist Status (conditional)
+        - type: conditional
+          conditions:
+            - entity: input_text.peak_assist_battery_fase
+              state_not: ""
+            - entity: input_text.peak_assist_battery_fase
+              state_not: "unknown"
+          card:
+            type: vertical-stack
+            cards:
+              - type: markdown
+                content: |
+                  ### ⚡ Peak Assist Actief
+
+                  **Assist Batterij:** {{ states('input_text.peak_assist_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+
+                  Tweede batterij levert bij in **Passive mode** om verbruikspiek op te vangen.
+                  Stopt automatisch bij normaal verbruik (P1 < 100W).
+
+              - type: entities
+                entities:
+                  - entity: timer.peak_assist_timer
+                    name: Resterende Tijd
+
+        # Systeem aan/uit
         - type: entities
+          title: Systeem
           entities:
-            - entity: timer.overflow_charging_timer
-              name: Resterende Tijd
+            - entity: input_boolean.battery_rotation_enabled
+              name: Batterij Rotatie
 
-  # Systeem aan/uit
-  - type: entities
-    title: Systeem
-    entities:
-      - entity: input_boolean.battery_rotation_enabled
-        name: Batterij Rotatie
+        # SOC Overzicht
+        - type: horizontal-stack
+          cards:
+            - type: vertical-stack
+              cards:
+                - type: gauge
+                  entity: sensor.marstek_venuse_d828_state_of_charge
+                  name: Fase A (schuin)
+                  min: 0
+                  max: 100
+                  severity:
+                    green: 50
+                    yellow: 20
+                    red: 0
+                  needle: true
+                - type: markdown
+                  content: >
+                    {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
+                    {{ states('sensor.marstek_venuse_d828_operating_mode') | default('?') }}
 
-  # Capaciteit overzicht
-  - type: entities
-    title: ⚡ Capaciteit
-    entities:
-      - entity: sensor.marstek_venuse_d828_remaining_capacity
-        name: Fase A (schuin)
-        icon: mdi:battery
-      - entity: sensor.marstek_fase_b_remaining_capacity
-        name: Fase B (plat)
-        icon: mdi:battery
-      - entity: sensor.marstek_venuse_remaining_capacity
-        name: Fase C (geen)
-        icon: mdi:battery
-      - type: divider
-      - entity: sensor.marstek_system_total_remaining_capacity_2
-        name: Totaal Systeem
-        icon: mdi:battery-high
+            - type: vertical-stack
+              cards:
+                - type: gauge
+                  entity: sensor.marstek_venuse_3_0_9a7d_state_of_charge
+                  name: Fase B (plat)
+                  min: 0
+                  max: 100
+                  severity:
+                    green: 50
+                    yellow: 20
+                    red: 0
+                  needle: true
+                - type: markdown
+                  content: >
+                    {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
+                    {{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') | default('?') }}
 
-  # SOC Overzicht met Status
-  - type: horizontal-stack
-    cards:
-      - type: vertical-stack
-        cards:
-          - type: gauge
-            entity: sensor.marstek_venuse_d828_state_of_charge
-            name: Fase A (schuin)
-            min: 0
-            max: 100
-            severity:
-              green: 50
-              yellow: 20
-              red: 0
-            needle: true
-          - type: markdown
-            content: >
-              {% if states('sensor.marstek_venuse_d828_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
-              {{ states('sensor.marstek_venuse_d828_operating_mode') | default('?') }}
+            - type: vertical-stack
+              cards:
+                - type: gauge
+                  entity: sensor.marstek_venuse_state_of_charge
+                  name: Fase C (geen)
+                  min: 0
+                  max: 100
+                  severity:
+                    green: 50
+                    yellow: 20
+                    red: 0
+                  needle: true
+                - type: markdown
+                  content: >
+                    {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
+                    {{ states('sensor.marstek_venuse_operating_mode') | default('?') }}
 
-      - type: vertical-stack
-        cards:
-          - type: gauge
-            entity: sensor.marstek_venuse_3_0_9a7d_state_of_charge
-            name: Fase B (plat)
-            min: 0
-            max: 100
-            severity:
-              green: 50
-              yellow: 20
-              red: 0
-            needle: true
-          - type: markdown
-            content: >
-              {% if states('sensor.marstek_venuse_3_0_9a7d_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
-              {{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') | default('?') }}
+        # Capaciteit overzicht
+        - type: entities
+          title: ⚡ Capaciteit
+          entities:
+            - entity: sensor.marstek_venuse_d828_remaining_capacity
+              name: Fase A (schuin)
+              icon: mdi:battery
+            - entity: sensor.marstek_fase_b_remaining_capacity
+              name: Fase B (plat)
+              icon: mdi:battery
+            - entity: sensor.marstek_venuse_remaining_capacity
+              name: Fase C (geen)
+              icon: mdi:battery
+            - type: divider
+            - entity: sensor.marstek_system_total_remaining_capacity_2
+              name: Totaal Systeem
+              icon: mdi:battery-high
 
-      - type: vertical-stack
-        cards:
-          - type: gauge
-            entity: sensor.marstek_venuse_state_of_charge
-            name: Fase C (geen)
-            min: 0
-            max: 100
-            severity:
-              green: 50
-              yellow: 20
-              red: 0
-            needle: true
-          - type: markdown
-            content: >
-              {% if states('sensor.marstek_venuse_state_of_charge') not in ['unavailable', 'unknown'] %}🟢{% else %}🔴{% endif %}
-              {{ states('sensor.marstek_venuse_operating_mode') | default('?') }}
+        # Automatische Selectie
+        - type: entities
+          title: Automatische Selectie
+          entities:
+            - entity: sensor.battery_emptiest
+              name: Leegste Batterij
+              icon: mdi:battery-low
+            - entity: sensor.battery_fullest
+              name: Volste Batterij
+              icon: mdi:battery-high
 
-  # Automatische Selectie
-  - type: entities
-    title: Automatische Selectie
-    entities:
-      - entity: sensor.battery_emptiest
-        name: Leegste Batterij
-        icon: mdi:battery-low
-      - entity: sensor.battery_fullest
-        name: Volste Batterij
-        icon: mdi:battery-high
-
-  # Manuele Controle
-  - type: horizontal-stack
-    cards:
-      - type: button
-        name: Activeer Fase A
-        icon: mdi:battery-charging-50
-        tap_action:
-          action: call-service
-          service: script.marstek_activate_fase_a
-
-      - type: button
-        name: Activeer Fase B
-        icon: mdi:battery-charging-50
-        tap_action:
-          action: call-service
-          service: script.marstek_activate_fase_b
-
-      - type: button
-        name: Activeer Fase C
-        icon: mdi:battery-charging-50
-        tap_action:
-          action: call-service
-          service: script.marstek_activate_fase_c
-
-  # Overflow Controle
-  - type: horizontal-stack
-    cards:
-      - type: button
-        name: Overflow A
-        icon: mdi:battery-plus
-        tap_action:
-          action: call-service
-          service: script.marstek_overflow_fase_a
-
-      - type: button
-        name: Overflow B
-        icon: mdi:battery-plus
-        tap_action:
-          action: call-service
-          service: script.marstek_overflow_fase_b
-
-      - type: button
-        name: Overflow C
-        icon: mdi:battery-plus
-        tap_action:
-          action: call-service
-          service: script.marstek_overflow_fase_c
-
-      - type: button
-        name: Stop
-        icon: mdi:battery-minus
-        tap_action:
-          action: call-service
-          service: script.marstek_overflow_stop
-
-  # Peak Assist Controle
-  - type: horizontal-stack
-    cards:
-      - type: button
-        name: Peak Assist A
-        icon: mdi:battery-arrow-down
-        tap_action:
-          action: call-service
-          service: script.marstek_peak_assist_fase_a
-
-      - type: button
-        name: Peak Assist B
-        icon: mdi:battery-arrow-down
-        tap_action:
-          action: call-service
-          service: script.marstek_peak_assist_fase_b
-
-      - type: button
-        name: Peak Assist C
-        icon: mdi:battery-arrow-down
-        tap_action:
-          action: call-service
-          service: script.marstek_peak_assist_fase_c
-
-      - type: button
-        name: Stop
-        icon: mdi:stop
-        tap_action:
-          action: call-service
-          service: script.marstek_peak_assist_stop
-
-  # Emergency Stop
-  - type: button
-    name: 🛑 STOP - Alle naar Manual
-    icon: mdi:stop-circle
-    tap_action:
-      action: call-service
-      service: script.marstek_all_batteries_manual
-      confirmation:
-        text: Weet je zeker dat je alle batterijen wilt stoppen?
-
-  # Recente Activiteit
-  - type: logbook
-    title: 📋 Recente Activiteit
-    hours_to_show: 24
-    entities:
-      - input_text.active_battery_fase
-      - input_text.overflow_battery_fase
-      - input_text.peak_assist_battery_fase
-      - input_boolean.battery_rotation_enabled
-      - input_boolean.night_charging_active
-      - input_text.night_charging_current_battery
-      - automation.marstek_solar_excess_switch_to_emptiest
-      - automation.marstek_grid_consumption_switch_to_fullest
-      - automation.marstek_overflow_charging_start
-      - automation.marstek_overflow_charging_stop
-      - automation.marstek_overflow_charging_timer_finished
-      - automation.marstek_peak_assist_start
-      - automation.marstek_peak_assist_stop
-      - automation.marstek_peak_assist_timer_finished
-      - automation.marstek_peak_aware_night_charging_start
-      - automation.marstek_peak_aware_night_charging_pause
-      - automation.marstek_peak_aware_night_charging_resume
-      - automation.marstek_peak_aware_night_charging_next_battery
-
-  # Instellingen
-  - type: entities
-    title: ⚙️ Instellingen
-    entities:
-      - entity: input_number.battery_switch_delay_minutes
-        name: Min. Tijd Tussen Switches
-      - type: divider
-      - entity: input_datetime.night_mode_start_time
-        name: Nachtmodus Start
-      - entity: input_datetime.day_mode_start_time
-        name: Dagmodus Start
-
-  # Nachtladen
-  - type: entities
-    title: 🌙 Nachtladen
-    entities:
-      - entity: input_select.night_charging_mode
-        name: Laadmodus
-      - type: divider
-      - entity: input_number.desired_total_capacity
-        name: Gewenste Capaciteit bij Dagstart
-      - entity: sensor.marstek_capacity_deficit
-        name: Batterij Deficit
-      - entity: sensor.marstek_night_hours
-        name: Nachtmodus Duur
-
-  # Piekbewust Status (alleen zichtbaar bij piekbewust modus)
-  - type: conditional
-    conditions:
-      - entity: input_select.night_charging_mode
-        state: "Piekbewust Laden"
+  # ==========================================================================
+  # TAB 2: NACHTLADEN - Planning
+  # ==========================================================================
+  - attributes:
+      label: Nachtladen
+      icon: mdi:weather-night
     card:
-      type: entities
-      title: 📊 Piekbewust Status
-      entities:
-        - entity: input_number.night_charging_power
-          name: Laadvermogen
-        - type: divider
-        - entity: sensor.marstek_safe_to_charge
-          name: Veilig om te Laden
-          icon: mdi:shield-check
-        - entity: input_boolean.night_charging_active
-          name: Piekbewust Laden Actief
-        - entity: input_text.night_charging_current_battery
-          name: Huidige Laadbatterij
-        - type: attribute
-          entity: sensor.marstek_safe_to_charge
-          attribute: current_avg
-          name: Huidig Kwartiergemiddelde
-          suffix: " W"
-        - type: attribute
-          entity: sensor.marstek_safe_to_charge
-          attribute: monthly_peak
-          name: Maandpiek
-          suffix: " W"
-        - type: attribute
-          entity: sensor.marstek_safe_to_charge
-          attribute: headroom
-          name: Beschikbare Ruimte
-          suffix: " W"
+      type: vertical-stack
+      cards:
+        # Nachtladen configuratie
+        - type: entities
+          title: 🌙 Nachtladen
+          entities:
+            - entity: input_select.night_charging_mode
+              name: Laadmodus
+            - type: divider
+            - entity: input_number.desired_total_capacity
+              name: Gewenste Capaciteit bij Dagstart
+            - entity: sensor.marstek_capacity_deficit
+              name: Batterij Deficit
+            - entity: sensor.marstek_night_hours
+              name: Nachtmodus Duur
 
-  # Zonnevoorspelling
-  - type: entities
-    title: ☀️ PV Voorspelling Morgen
-    entities:
-      - entity: input_number.pv_production_per_sunny_hour
-        name: Productie per Zonuur
-      - entity: sensor.marstek_sunny_hours_tomorrow
-        name: Zonuren Morgen
-      - entity: sensor.marstek_expected_pv_tomorrow
-        name: Verwachte PV Productie
+        # Piekbewust Status (conditional)
+        - type: conditional
+          conditions:
+            - entity: input_select.night_charging_mode
+              state: "Piekbewust Laden"
+          card:
+            type: entities
+            title: 📊 Piekbewust Status
+            entities:
+              - entity: input_number.night_charging_power
+                name: Laadvermogen
+              - type: divider
+              - entity: sensor.marstek_safe_to_charge
+                name: Veilig om te Laden
+                icon: mdi:shield-check
+              - entity: input_boolean.night_charging_active
+                name: Piekbewust Laden Actief
+              - entity: input_text.night_charging_current_battery
+                name: Huidige Laadbatterij
+              - type: attribute
+                entity: sensor.marstek_safe_to_charge
+                attribute: current_avg
+                name: Huidig Kwartiergemiddelde
+                suffix: " W"
+              - type: attribute
+                entity: sensor.marstek_safe_to_charge
+                attribute: monthly_peak
+                name: Maandpiek
+                suffix: " W"
+              - type: attribute
+                entity: sensor.marstek_safe_to_charge
+                attribute: headroom
+                name: Beschikbare Ruimte
+                suffix: " W"
 
-  # Laadplan
-  - type: entities
-    title: 🔋 Laadplan
-    entities:
-      - entity: sensor.marstek_net_charging_deficit
-        name: Netto Te Laden
-        icon: mdi:battery-charging-outline
-      - entity: sensor.marstek_required_charging_power
-        name: Totaal Laadvermogen (nu)
-        icon: mdi:flash
-      - entity: sensor.marstek_estimated_charging_power
-        name: Geschat Laadvermogen
-        icon: mdi:flash-outline
-      - entity: sensor.marstek_charging_plan
-        name: Laadplan Vannacht
-        icon: mdi:battery-charging-wireless
+        # Zonnevoorspelling
+        - type: entities
+          title: ☀️ PV Voorspelling Morgen
+          entities:
+            - entity: input_number.pv_production_per_sunny_hour
+              name: Productie per Zonuur
+            - entity: sensor.marstek_sunny_hours_tomorrow
+              name: Zonuren Morgen
+            - entity: sensor.marstek_expected_pv_tomorrow
+              name: Verwachte PV Productie
 
-  # Overflow Instellingen
-  - type: entities
-    title: ⚡ Overflow Instellingen
-    entities:
-      - entity: input_number.overflow_power
-        name: Laadvermogen
-      - entity: input_number.overflow_duration
-        name: Duur
+        # Laadplan
+        - type: entities
+          title: 🔋 Laadplan
+          entities:
+            - entity: sensor.marstek_net_charging_deficit
+              name: Netto Te Laden
+              icon: mdi:battery-charging-outline
+            - entity: sensor.marstek_required_charging_power
+              name: Totaal Laadvermogen (nu)
+              icon: mdi:flash
+            - entity: sensor.marstek_estimated_charging_power
+              name: Geschat Laadvermogen
+              icon: mdi:flash-outline
+            - entity: sensor.marstek_charging_plan
+              name: Laadplan Vannacht
+              icon: mdi:battery-charging-wireless
 
-  # Peak Assist Instellingen
-  - type: entities
-    title: ⚡ Peak Assist Instellingen
-    entities:
-      - entity: input_number.peak_assist_power
-        name: Ontlaadvermogen
-      - entity: input_number.peak_assist_duration
-        name: Duur
+  # ==========================================================================
+  # TAB 3: BESTURING - Manual Controls
+  # ==========================================================================
+  - attributes:
+      label: Besturing
+      icon: mdi:controller
+    card:
+      type: vertical-stack
+      cards:
+        # Manuele Controle
+        - type: entities
+          title: 🔋 Manuele Batterij Activatie
+        - type: horizontal-stack
+          cards:
+            - type: button
+              name: Activeer Fase A
+              icon: mdi:battery-charging-50
+              tap_action:
+                action: call-service
+                service: script.marstek_activate_fase_a
+
+            - type: button
+              name: Activeer Fase B
+              icon: mdi:battery-charging-50
+              tap_action:
+                action: call-service
+                service: script.marstek_activate_fase_b
+
+            - type: button
+              name: Activeer Fase C
+              icon: mdi:battery-charging-50
+              tap_action:
+                action: call-service
+                service: script.marstek_activate_fase_c
+
+        # Overflow Controle
+        - type: entities
+          title: ⚡ Overflow Charging (PV Overschot)
+        - type: horizontal-stack
+          cards:
+            - type: button
+              name: Overflow A
+              icon: mdi:battery-plus
+              tap_action:
+                action: call-service
+                service: script.marstek_overflow_fase_a
+
+            - type: button
+              name: Overflow B
+              icon: mdi:battery-plus
+              tap_action:
+                action: call-service
+                service: script.marstek_overflow_fase_b
+
+            - type: button
+              name: Overflow C
+              icon: mdi:battery-plus
+              tap_action:
+                action: call-service
+                service: script.marstek_overflow_fase_c
+
+            - type: button
+              name: Stop
+              icon: mdi:battery-minus
+              tap_action:
+                action: call-service
+                service: script.marstek_overflow_stop
+
+        # Peak Assist Controle
+        - type: entities
+          title: ⚡ Peak Assist (Verbruikspiek)
+        - type: horizontal-stack
+          cards:
+            - type: button
+              name: Peak Assist A
+              icon: mdi:battery-arrow-down
+              tap_action:
+                action: call-service
+                service: script.marstek_peak_assist_fase_a
+
+            - type: button
+              name: Peak Assist B
+              icon: mdi:battery-arrow-down
+              tap_action:
+                action: call-service
+                service: script.marstek_peak_assist_fase_b
+
+            - type: button
+              name: Peak Assist C
+              icon: mdi:battery-arrow-down
+              tap_action:
+                action: call-service
+                service: script.marstek_peak_assist_fase_c
+
+            - type: button
+              name: Stop
+              icon: mdi:stop
+              tap_action:
+                action: call-service
+                service: script.marstek_peak_assist_stop
+
+        # Emergency Stop
+        - type: button
+          name: 🛑 STOP - Alle naar Manual
+          icon: mdi:stop-circle
+          tap_action:
+            action: call-service
+            service: script.marstek_all_batteries_manual
+            confirmation:
+              text: Weet je zeker dat je alle batterijen wilt stoppen?
+
+  # ==========================================================================
+  # TAB 4: INSTELLINGEN - Configuration
+  # ==========================================================================
+  - attributes:
+      label: Instellingen
+      icon: mdi:cog-outline
+    card:
+      type: vertical-stack
+      cards:
+        # Algemeen
+        - type: entities
+          title: ⚙️ Algemeen
+          entities:
+            - entity: input_number.battery_switch_delay_minutes
+              name: Min. Tijd Tussen Switches
+            - type: divider
+            - entity: input_datetime.night_mode_start_time
+              name: Nachtmodus Start
+            - entity: input_datetime.day_mode_start_time
+              name: Dagmodus Start
+
+        # Overflow Instellingen
+        - type: entities
+          title: ⚡ Overflow Charging
+          entities:
+            - entity: input_number.overflow_power
+              name: Laadvermogen
+            - entity: input_number.overflow_duration
+              name: Duur
+
+        # Peak Assist Instellingen
+        - type: entities
+          title: ⚡ Peak Assist
+          entities:
+            - entity: input_number.peak_assist_power
+              name: Ontlaadvermogen
+            - entity: input_number.peak_assist_duration
+              name: Duur
+
+  # ==========================================================================
+  # TAB 5: LOGBOEK - History
+  # ==========================================================================
+  - attributes:
+      label: Logboek
+      icon: mdi:clipboard-text-outline
+    card:
+      type: vertical-stack
+      cards:
+        # Recente Activiteit
+        - type: logbook
+          title: 📋 Recente Activiteit
+          hours_to_show: 24
+          entities:
+            - input_text.active_battery_fase
+            - input_text.overflow_battery_fase
+            - input_text.peak_assist_battery_fase
+            - input_boolean.battery_rotation_enabled
+            - input_boolean.night_charging_active
+            - input_text.night_charging_current_battery
+            - automation.marstek_solar_excess_switch_to_emptiest
+            - automation.marstek_grid_consumption_switch_to_fullest
+            - automation.marstek_overflow_charging_start
+            - automation.marstek_overflow_charging_stop
+            - automation.marstek_overflow_charging_timer_finished
+            - automation.marstek_peak_assist_start
+            - automation.marstek_peak_assist_stop
+            - automation.marstek_peak_assist_timer_finished
+            - automation.marstek_peak_aware_night_charging_start
+            - automation.marstek_peak_aware_night_charging_pause
+            - automation.marstek_peak_aware_night_charging_resume
+            - automation.marstek_peak_aware_night_charging_next_battery
