@@ -33,14 +33,21 @@ cards:
       - entity: input_text.overflow_battery_fase
         state_not: "unknown"
     card:
-      type: markdown
-      content: |
-        ### ⚡ Overflow Charging Actief
+      type: vertical-stack
+      cards:
+        - type: markdown
+          content: |
+            ### ⚡ Overflow Charging Actief
 
-        **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+            **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
 
-        Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
-        Stopt automatisch bij verbruik (P1 > 100W).
+            Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
+            Stopt automatisch bij verbruik (P1 > 100W).
+
+        - type: entities
+          entities:
+            - entity: timer.overflow_charging_timer
+              name: Resterende Tijd
 
   # Systeem aan/uit
   - type: entities
@@ -211,6 +218,7 @@ cards:
       - automation.marstek_grid_consumption_switch_to_fullest
       - automation.marstek_overflow_charging_start
       - automation.marstek_overflow_charging_stop
+      - automation.marstek_overflow_charging_timer_finished
       - automation.marstek_peak_aware_night_charging_start
       - automation.marstek_peak_aware_night_charging_pause
       - automation.marstek_peak_aware_night_charging_resume

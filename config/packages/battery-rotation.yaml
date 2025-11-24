@@ -493,6 +493,11 @@ input_boolean:
     initial: false
     icon: mdi:battery-charging-wireless
 
+timer:
+  overflow_charging_timer:
+    name: "Overflow Charging Timer"
+    icon: mdi:timer-outline
+
 # ============================================================================
 # AUTOMATIONS
 # ============================================================================
@@ -1156,6 +1161,13 @@ automation:
         data:
           value: "{{ emptiest_inactive }}"
 
+      # Start timer voor automatische cleanup
+      - service: timer.start
+        target:
+          entity_id: timer.overflow_charging_timer
+        data:
+          duration: "{{ duration_sec }}"
+
       # Logbook entry voor Recente Activiteit
       - service: logbook.log
         data:
@@ -1231,6 +1243,11 @@ automation:
         data:
           value: ""
 
+      # Cancel timer (overflow gestopt door verbruik)
+      - service: timer.cancel
+        target:
+          entity_id: timer.overflow_charging_timer
+
       # Logbook entry voor Recente Activiteit
       - service: logbook.log
         data:
@@ -1248,6 +1265,78 @@ automation:
             Verbruik gedetecteerd ({{ states('sensor.p1_meter_power') }}W)
             {{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
             terug naar Manual mode
+
+  # --------------------------------------------------------------------------
+  # OVERFLOW CHARGING TIMER - Automatische cleanup na duration
+  # --------------------------------------------------------------------------
+  - id: marstek_overflow_charging_timer_finished
+    alias: "Marstek: Overflow Charging Timer Finished"
+    description: "Zet batterij terug naar Manual wanneer overflow duration afloopt"
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.overflow_charging_timer
+    condition:
+      # Check of overflow tracking nog actief is
+      - condition: template
+        value_template: "{{ states('input_text.overflow_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+    action:
+      - variables:
+          overflow_bat: "{{ states('input_text.overflow_battery_fase') }}"
+
+      # Zet overflow batterij terug naar Manual
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Clear overflow tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: ""
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: >
+            {{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            voltooid (timer)
+          entity_id: input_text.overflow_battery_fase
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Voltooid"
+          message: >
+            {{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            overflow charging voltooid - terug naar Manual mode
 
   # --------------------------------------------------------------------------
   # PIEKBEWUST NACHTLADEN - Start bij nachtmodus
@@ -1819,6 +1908,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: "fase_a"
+      - service: timer.start
+        target:
+          entity_id: timer.overflow_charging_timer
+        data:
+          duration: "{{ duration_sec }}"
       - service: logbook.log
         data:
           name: "Overflow Charging"
@@ -1846,6 +1940,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: "fase_b"
+      - service: timer.start
+        target:
+          entity_id: timer.overflow_charging_timer
+        data:
+          duration: "{{ duration_sec }}"
       - service: logbook.log
         data:
           name: "Overflow Charging"
@@ -1873,6 +1972,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: "fase_c"
+      - service: timer.start
+        target:
+          entity_id: timer.overflow_charging_timer
+        data:
+          duration: "{{ duration_sec }}"
       - service: logbook.log
         data:
           name: "Overflow Charging"
@@ -1918,6 +2022,9 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.overflow_charging_timer
       - service: logbook.log
         data:
           name: "Overflow Charging"
