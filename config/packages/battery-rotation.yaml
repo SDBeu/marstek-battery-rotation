@@ -393,6 +393,24 @@ input_number:
     unit_of_measurement: "kWh"
     icon: mdi:solar-power
 
+  overflow_power:
+    name: "Overflow Laadvermogen"
+    min: 100
+    max: 2500
+    step: 100
+    initial: 1500
+    unit_of_measurement: "W"
+    icon: mdi:flash
+
+  overflow_duration:
+    name: "Overflow Duur"
+    min: 5
+    max: 60
+    step: 5
+    initial: 30
+    unit_of_measurement: "min"
+    icon: mdi:timer
+
 input_datetime:
   last_battery_switch:
     name: "Laatste Batterij Switch"
@@ -1010,8 +1028,10 @@ automation:
 
     action:
       - variables:
-          # Bereken power: |P1| met max 1500W
-          overflow_power: "{{ [states('sensor.p1_meter_power')|float(0)|abs|int, 1500]|min }}"
+          # Bereken power: |P1| met max van instelling
+          max_power: "{{ states('input_number.overflow_power')|int(1500) }}"
+          overflow_power: "{{ [states('sensor.p1_meter_power')|float(0)|abs|int, max_power]|min }}"
+          duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
           active: "{{ states('input_text.active_battery_fase') }}"
           # Bepaal leegste inactieve batterij
           emptiest_inactive: >
@@ -1033,7 +1053,7 @@ automation:
                 data:
                   device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
                   power: "{{ -overflow_power }}"
-                  duration: 1800
+                  duration: "{{ duration_sec }}"
                 continue_on_error: true
 
           - conditions:
@@ -1044,7 +1064,7 @@ automation:
                 data:
                   device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
                   power: "{{ -overflow_power }}"
-                  duration: 1800
+                  duration: "{{ duration_sec }}"
                 continue_on_error: true
 
           - conditions:
@@ -1055,7 +1075,7 @@ automation:
                 data:
                   device_id: "f15b9f6024d9a2b044ca90e77824a314"
                   power: "{{ -overflow_power }}"
-                  duration: 1800
+                  duration: "{{ duration_sec }}"
                 continue_on_error: true
 
       # Track welke batterij in overflow is
@@ -1072,7 +1092,7 @@ automation:
           message: >
             PV overflow: {{ states('sensor.p1_meter_power')|abs }}W
             {{ emptiest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
-            in Passive mode @ {{ overflow_power }}W
+            in Passive mode @ {{ overflow_power }}W voor {{ duration_sec // 60 }} min
 
   # --------------------------------------------------------------------------
   # OVERFLOW CHARGING STOP - Terug naar normaal bij verbruik
@@ -1288,11 +1308,14 @@ script:
   marstek_overflow_fase_a:
     alias: "Overflow Fase A"
     sequence:
+      - variables:
+          power_w: "{{ states('input_number.overflow_power')|int(1500) }}"
+          duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
       - service: marstek_local_api.set_passive_mode
         data:
           device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-          power: -1500
-          duration: 1800
+          power: "{{ -power_w }}"
+          duration: "{{ duration_sec }}"
         continue_on_error: true
       - service: input_text.set_value
         target:
@@ -1302,16 +1325,19 @@ script:
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase A in Passive mode @ 1500W"
+          message: "Fase A in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
 
   marstek_overflow_fase_b:
     alias: "Overflow Fase B"
     sequence:
+      - variables:
+          power_w: "{{ states('input_number.overflow_power')|int(1500) }}"
+          duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
       - service: marstek_local_api.set_passive_mode
         data:
           device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-          power: -1500
-          duration: 1800
+          power: "{{ -power_w }}"
+          duration: "{{ duration_sec }}"
         continue_on_error: true
       - service: input_text.set_value
         target:
@@ -1321,16 +1347,19 @@ script:
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase B in Passive mode @ 1500W"
+          message: "Fase B in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
 
   marstek_overflow_fase_c:
     alias: "Overflow Fase C"
     sequence:
+      - variables:
+          power_w: "{{ states('input_number.overflow_power')|int(1500) }}"
+          duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
       - service: marstek_local_api.set_passive_mode
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"
-          power: -1500
-          duration: 1800
+          power: "{{ -power_w }}"
+          duration: "{{ duration_sec }}"
         continue_on_error: true
       - service: input_text.set_value
         target:
@@ -1340,7 +1369,7 @@ script:
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase C in Passive mode @ 1500W"
+          message: "Fase C in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
 
   marstek_overflow_stop:
     alias: "Stop Overflow"

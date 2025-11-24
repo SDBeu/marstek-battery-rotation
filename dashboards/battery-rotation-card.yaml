@@ -187,6 +187,15 @@ cards:
           action: call-service
           service: script.marstek_overflow_stop
 
+  # Overflow Instellingen
+  - type: entities
+    title: ⚡ Overflow Instellingen
+    entities:
+      - entity: input_number.overflow_power
+        name: Laadvermogen
+      - entity: input_number.overflow_duration
+        name: Duur
+
   # Emergency Stop
   - type: button
     name: 🛑 STOP - Alle naar Manual
