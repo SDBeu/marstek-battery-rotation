@@ -394,6 +394,11 @@ input_text:
     initial: ""
     icon: mdi:battery-plus-variant
 
+  peak_assist_battery_fase:
+    name: "Peak Assist Batterij Fase"
+    initial: ""
+    icon: mdi:battery-arrow-down
+
   night_charging_current_battery:
     name: "Huidige Laadbatterij"
     initial: ""
@@ -454,6 +459,24 @@ input_number:
     unit_of_measurement: "min"
     icon: mdi:timer
 
+  peak_assist_power:
+    name: "Peak Assist Ontlaadvermogen"
+    min: 100
+    max: 2500
+    step: 100
+    initial: 1000
+    unit_of_measurement: "W"
+    icon: mdi:flash
+
+  peak_assist_duration:
+    name: "Peak Assist Duur"
+    min: 1
+    max: 60
+    step: 1
+    initial: 5
+    unit_of_measurement: "min"
+    icon: mdi:timer
+
   night_charging_power:
     name: "Nachtladen Vermogen"
     min: 500
@@ -496,6 +519,10 @@ input_boolean:
 timer:
   overflow_charging_timer:
     name: "Overflow Charging Timer"
+    icon: mdi:timer-outline
+
+  peak_assist_timer:
+    name: "Peak Assist Timer"
     icon: mdi:timer-outline
 
 # ============================================================================
@@ -764,6 +791,10 @@ automation:
       - condition: template
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
+
+      # Geen peak assist actief (conflict preventie)
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
 
     action:
       # Notificatie
@@ -1102,6 +1133,10 @@ automation:
             {{ states('sensor.marstek_venuse_state_of_charge')|float(100) < 85 }}
           {% endif %}
 
+      # Geen peak assist actief (conflict preventie)
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
     action:
       - variables:
           # Bereken power: |P1| met max van instelling
@@ -1337,6 +1372,280 @@ automation:
           message: >
             {{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
             overflow charging voltooid - terug naar Manual mode
+
+  # --------------------------------------------------------------------------
+  # PEAK ASSIST - Tijdelijk bijleveren bij korte verbruikspieken
+  # --------------------------------------------------------------------------
+  - id: marstek_peak_assist_start
+    alias: "Marstek: Peak Assist Start"
+    description: "Bij korte verbruikspiek, activeer volste batterij tijdelijk in Passive mode om bij te leveren"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        above: 200
+        for:
+          seconds: 20
+    condition:
+      # Systeem enabled
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Alleen in dagfase (niet 's nachts)
+      - condition: template
+        value_template: >
+          {% set now_time = now().time() %}
+          {% set day_start = states('input_datetime.day_mode_start_time') %}
+          {% set night_start = states('input_datetime.night_mode_start_time') %}
+          {% if day_start not in ['unknown', 'unavailable'] and night_start not in ['unknown', 'unavailable'] %}
+            {% set day_h = day_start.split(':')[0]|int %}
+            {% set day_m = day_start.split(':')[1]|int %}
+            {% set night_h = night_start.split(':')[0]|int %}
+            {% set night_m = night_start.split(':')[1]|int %}
+            {% set day_minutes = day_h * 60 + day_m %}
+            {% set night_minutes = night_h * 60 + night_m %}
+            {% set now_minutes = now_time.hour * 60 + now_time.minute %}
+            {% if day_minutes < night_minutes %}
+              {{ now_minutes >= day_minutes and now_minutes < night_minutes }}
+            {% else %}
+              {{ now_minutes >= day_minutes or now_minutes < night_minutes }}
+            {% endif %}
+          {% else %}
+            true
+          {% endif %}
+
+      # Geen peak assist al actief
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
+      # Geen overflow charging actief (conflict preventie)
+      - condition: template
+        value_template: "{{ states('input_text.overflow_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
+    action:
+      - variables:
+          assist_power: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+          active: "{{ states('input_text.active_battery_fase') }}"
+          # Bepaal volste inactieve batterij
+          fullest_inactive: >
+            {% set socs = {
+              'fase_a': states('sensor.marstek_venuse_d828_state_of_charge')|float(0),
+              'fase_b': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0),
+              'fase_c': states('sensor.marstek_venuse_state_of_charge')|float(0)
+            } %}
+            {% set inactive = socs | dictsort(by='value', reverse=true) | rejectattr('0', 'eq', active) | list %}
+            {{ inactive[0][0] if inactive else 'fase_a' }}
+
+      # Zet peak assist batterij in Passive mode (positief = ontladen)
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest_inactive == 'fase_a' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                  power: "{{ assist_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest_inactive == 'fase_b' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                  power: "{{ assist_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest_inactive == 'fase_c' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                  power: "{{ assist_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+      # Track welke batterij in peak assist is
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "{{ fullest_inactive }}"
+
+      # Start timer voor automatische cleanup
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: >
+            {{ fullest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            gestart: {{ assist_power }}W voor {{ duration_sec // 60 }} minuten
+          entity_id: input_text.peak_assist_battery_fase
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Gestart"
+          message: >
+            {{ fullest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            levert {{ assist_power }}W bij voor {{ duration_sec // 60 }} minuten
+
+  - id: marstek_peak_assist_stop
+    alias: "Marstek: Peak Assist Stop"
+    description: "Stop peak assist wanneer verbruik weer normaal is"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        below: 100
+        for:
+          seconds: 20
+    condition:
+      # Check of peak assist actief is
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+    action:
+      - variables:
+          assist_bat: "{{ states('input_text.peak_assist_battery_fase') }}"
+
+      # Zet peak assist batterij terug naar Manual
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Clear peak assist tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: ""
+
+      # Cancel timer (peak assist gestopt door normaal verbruik)
+      - service: timer.cancel
+        target:
+          entity_id: timer.peak_assist_timer
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: >
+            {{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            gestopt (verbruik normaal)
+          entity_id: input_text.peak_assist_battery_fase
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Gestopt"
+          message: >
+            {{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            peak assist gestopt - verbruik weer normaal
+
+  - id: marstek_peak_assist_timer_finished
+    alias: "Marstek: Peak Assist Timer Finished"
+    description: "Zet batterij terug naar Manual wanneer peak assist duration afloopt"
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.peak_assist_timer
+    condition:
+      # Check of peak assist tracking nog actief is
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+    action:
+      - variables:
+          assist_bat: "{{ states('input_text.peak_assist_battery_fase') }}"
+
+      # Zet peak assist batterij terug naar Manual
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Clear peak assist tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: ""
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: >
+            {{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            voltooid (timer)
+          entity_id: input_text.peak_assist_battery_fase
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Voltooid"
+          message: >
+            {{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            peak assist voltooid - terug naar Manual mode
 
   # --------------------------------------------------------------------------
   # PIEKBEWUST NACHTLADEN - Start bij nachtmodus
@@ -2034,3 +2343,148 @@ script:
         data:
           title: "⚡ Marstek - Overflow Gestopt"
           message: "Overflow charging handmatig gestopt"
+
+  # Peak assist scripts
+  marstek_peak_assist_fase_a:
+    alias: "Peak Assist Fase A"
+    sequence:
+      - variables:
+          power_w: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+          power: "{{ power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "fase_a"
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "Fase A handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Handmatig"
+          message: "Fase A in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
+
+  marstek_peak_assist_fase_b:
+    alias: "Peak Assist Fase B"
+    sequence:
+      - variables:
+          power_w: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+          power: "{{ power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "fase_b"
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "Fase B handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Handmatig"
+          message: "Fase B in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
+
+  marstek_peak_assist_fase_c:
+    alias: "Peak Assist Fase C"
+    sequence:
+      - variables:
+          power_w: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"
+          power: "{{ power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "fase_c"
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "Fase C handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Handmatig"
+          message: "Fase C in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
+
+  marstek_peak_assist_stop:
+    alias: "Stop Peak Assist"
+    sequence:
+      - variables:
+          assist_bat: "{{ states('input_text.peak_assist_battery_fase') }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.peak_assist_timer
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "{{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }} handmatig gestopt"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Gestopt"
+          message: "Peak assist handmatig gestopt"

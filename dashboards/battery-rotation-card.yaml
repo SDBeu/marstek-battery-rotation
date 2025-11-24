@@ -194,6 +194,37 @@ cards:
           action: call-service
           service: script.marstek_overflow_stop
 
+  # Peak Assist Controle
+  - type: horizontal-stack
+    cards:
+      - type: button
+        name: Peak Assist A
+        icon: mdi:battery-arrow-down
+        tap_action:
+          action: call-service
+          service: script.marstek_peak_assist_fase_a
+
+      - type: button
+        name: Peak Assist B
+        icon: mdi:battery-arrow-down
+        tap_action:
+          action: call-service
+          service: script.marstek_peak_assist_fase_b
+
+      - type: button
+        name: Peak Assist C
+        icon: mdi:battery-arrow-down
+        tap_action:
+          action: call-service
+          service: script.marstek_peak_assist_fase_c
+
+      - type: button
+        name: Stop
+        icon: mdi:stop
+        tap_action:
+          action: call-service
+          service: script.marstek_peak_assist_stop
+
   # Emergency Stop
   - type: button
     name: 🛑 STOP - Alle naar Manual
@@ -211,6 +242,7 @@ cards:
     entities:
       - input_text.active_battery_fase
       - input_text.overflow_battery_fase
+      - input_text.peak_assist_battery_fase
       - input_boolean.battery_rotation_enabled
       - input_boolean.night_charging_active
       - input_text.night_charging_current_battery
@@ -219,6 +251,9 @@ cards:
       - automation.marstek_overflow_charging_start
       - automation.marstek_overflow_charging_stop
       - automation.marstek_overflow_charging_timer_finished
+      - automation.marstek_peak_assist_start
+      - automation.marstek_peak_assist_stop
+      - automation.marstek_peak_assist_timer_finished
       - automation.marstek_peak_aware_night_charging_start
       - automation.marstek_peak_aware_night_charging_pause
       - automation.marstek_peak_aware_night_charging_resume
@@ -319,4 +354,13 @@ cards:
       - entity: input_number.overflow_power
         name: Laadvermogen
       - entity: input_number.overflow_duration
+        name: Duur
+
+  # Peak Assist Instellingen
+  - type: entities
+    title: ⚡ Peak Assist Instellingen
+    entities:
+      - entity: input_number.peak_assist_power
+        name: Ontlaadvermogen
+      - entity: input_number.peak_assist_duration
         name: Duur
