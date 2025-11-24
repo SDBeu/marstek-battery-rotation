@@ -205,10 +205,16 @@ cards:
       - input_text.active_battery_fase
       - input_text.overflow_battery_fase
       - input_boolean.battery_rotation_enabled
+      - input_boolean.night_charging_active
+      - input_text.night_charging_current_battery
       - automation.marstek_solar_excess_switch_to_emptiest
       - automation.marstek_grid_consumption_switch_to_fullest
       - automation.marstek_overflow_charging_start
       - automation.marstek_overflow_charging_stop
+      - automation.marstek_peak_aware_night_charging_start
+      - automation.marstek_peak_aware_night_charging_pause
+      - automation.marstek_peak_aware_night_charging_resume
+      - automation.marstek_peak_aware_night_charging_next_battery
 
   # Instellingen
   - type: entities
@@ -226,13 +232,49 @@ cards:
   - type: entities
     title: 🌙 Nachtladen
     entities:
+      - entity: input_select.night_charging_mode
+        name: Laadmodus
+      - entity: input_number.night_charging_power
+        name: Laadvermogen (Piekbewust)
+      - type: divider
       - entity: input_number.desired_total_capacity
         name: Gewenste Capaciteit bij Dagstart
-      - type: divider
       - entity: sensor.marstek_capacity_deficit
         name: Batterij Deficit
       - entity: sensor.marstek_night_hours
         name: Nachtmodus Duur
+
+  # Piekbewust Status (alleen zichtbaar bij piekbewust modus)
+  - type: conditional
+    conditions:
+      - entity: input_select.night_charging_mode
+        state: "Piekbewust Laden"
+    card:
+      type: entities
+      title: 📊 Piekbewust Status
+      entities:
+        - entity: sensor.marstek_safe_to_charge
+          name: Veilig om te Laden
+          icon: mdi:shield-check
+        - entity: input_boolean.night_charging_active
+          name: Piekbewust Laden Actief
+        - entity: input_text.night_charging_current_battery
+          name: Huidige Laadbatterij
+        - type: attribute
+          entity: sensor.marstek_safe_to_charge
+          attribute: current_avg
+          name: Huidig Kwartiergemiddelde
+          suffix: " W"
+        - type: attribute
+          entity: sensor.marstek_safe_to_charge
+          attribute: monthly_peak
+          name: Maandpiek
+          suffix: " W"
+        - type: attribute
+          entity: sensor.marstek_safe_to_charge
+          attribute: headroom
+          name: Beschikbare Ruimte
+          suffix: " W"
 
   # Zonnevoorspelling
   - type: entities
