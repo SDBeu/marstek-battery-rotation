@@ -585,3 +585,83 @@ De `jaapp/ha-marstek-local-api` integratie is een volledige, werkende Home Assis
 - Goede samenwerking: vraag stellen → plan → goedkeuring → execute
 - Network subnet 192.168.6.x (was 192.168.0.x)
 - Alle 3 batterijen bereikbaar en werkend
+
+---
+
+### Session 3 - 2025-11-24
+
+**✅ BATTERIJ ROTATIE SYSTEEM VOLLEDIG WERKEND**
+
+**Geïmplementeerde Features**:
+
+1. **Batterij Rotatie Systeem** (`config/packages/battery-rotation.yaml`)
+   - Automatisch wisselen tussen 3 batterijen op basis van P1 meter
+   - Bij zonoverschot (P1 < -200W): leegste batterij actief
+   - Bij netverbruik (P1 > +200W): volste batterij actief
+   - Nachtmodus: rotatie automatisch uit voor nachtladen
+   - Dagmodus: rotatie automatisch aan
+
+2. **PV Voorspelling voor Nachtladen**
+   - Telt zonuren morgen (07:00-20:00) via weather.forecast_home
+   - Configureerbare productie per zonuur (input_number.pv_production_per_sunny_hour)
+   - Berekent verwachte PV productie morgen
+   - Trekt dit af van nachtlaad deficit
+
+3. **Multi-Battery Night Charging**
+   - Distribueert laad-deficit over meerdere batterijen
+   - Berekent beschikbare capaciteit per batterij (5kWh - remaining)
+   - Sorteert op beschikbare ruimte (leegste eerst)
+   - Zet individuele laadschema's per batterij
+
+4. **Overflow Charging** (nieuw!)
+   - Bij hoge PV productie en actieve batterij < 85% SOC
+   - Activeert tweede batterij in Passive mode
+   - Power = |P1| met configureerbaar maximum
+   - Configureerbare duration en power via dashboard
+   - Stopt automatisch bij verbruik (P1 > 100W)
+   - Manuele knoppen: Overflow A/B/C en Stop
+
+5. **Dashboard** (`dashboards/battery-rotation-card.yaml`)
+   - Real-time SOC gauges per batterij
+   - Overflow status indicator
+   - Manuele controle knoppen
+   - PV voorspelling sectie
+   - Overflow instellingen (power/duration)
+   - Nachtladen sectie
+
+**Device IDs** (voor marstek_local_api services):
+- Fase A (schuin/d828): `c1fbfff25b11fcecf3530135b0b08f2c`
+- Fase B (plat/9a7d): `79ea26ebcb0b77cc1e4acd1cc5af41f6`
+- Fase C (geen/deb8): `f15b9f6024d9a2b044ca90e77824a314`
+
+**IP Adressen**:
+- Fase A: 192.168.6.80
+- Fase B: 192.168.6.213
+- Fase C: 192.168.6.144
+
+**Key Sensors**:
+- `sensor.battery_emptiest` / `sensor.battery_fullest`
+- `sensor.marstek_sunny_hours_tomorrow` (trigger-based)
+- `sensor.marstek_expected_pv_tomorrow`
+- `sensor.marstek_net_charging_deficit`
+- `sensor.marstek_charging_plan`
+- `input_text.active_battery_fase`
+- `input_text.overflow_battery_fase`
+
+**Input Helpers**:
+- `input_number.overflow_power` (100-2500W)
+- `input_number.overflow_duration` (5-60 min)
+- `input_number.pv_production_per_sunny_hour`
+- `input_number.desired_total_capacity`
+- `input_datetime.night_mode_start_time`
+- `input_datetime.day_mode_start_time`
+
+**Bekende Issues**:
+- Weather entity: moet `weather.forecast_home` zijn (niet forecast_thuis)
+- Trigger-based sensors: vereisen HA restart (niet alleen YAML reload)
+- `clear_manual_schedules` duurt 1-2 min per batterij
+
+**Volgende Stappen**:
+- Testen overflow charging in productie
+- Fine-tunen van thresholds
+- Mogelijk: automatische overflow stop bij SOC > 95%
