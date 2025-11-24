@@ -896,26 +896,12 @@ automation:
   # --------------------------------------------------------------------------
   - id: marstek_enable_rotation_in_morning
     alias: "Marstek: Enable Rotation in Morning"
-    description: "Zet batterij rotatie AAN, clear nachtschema's en activeer Fase A"
+    description: "Zet batterij rotatie AAN, activeer Fase A, daarna clear nachtschema's"
     trigger:
       - platform: time
         at: input_datetime.day_mode_start_time
     action:
-      # Clear nacht laadschema's van alle batterijen
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-        continue_on_error: true
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-        continue_on_error: true
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "f15b9f6024d9a2b044ca90e77824a314"
-        continue_on_error: true
-
-      # Zet rotatie systeem AAN
+      # EERST: Zet rotatie systeem AAN (directe feedback)
       - service: input_boolean.turn_on
         target:
           entity_id: input_boolean.battery_rotation_enabled
@@ -956,6 +942,20 @@ automation:
         data:
           title: "☀️ Marstek - Dagmodus"
           message: "Batterij rotatie AAN - Fase A geactiveerd"
+
+      # LAATST: Clear nacht laadschema's (traag, minder urgent)
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+        continue_on_error: true
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+        continue_on_error: true
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"
+        continue_on_error: true
 
 # ============================================================================
 # SCRIPTS
