@@ -360,6 +360,11 @@ input_text:
     initial: "fase_a"
     icon: mdi:battery-charging
 
+  overflow_battery_fase:
+    name: "Overflow Batterij Fase"
+    initial: ""
+    icon: mdi:battery-plus-variant
+
 input_number:
   battery_switch_delay_minutes:
     name: "Minimale Tijd Tussen Switches"
@@ -526,7 +531,7 @@ automation:
   # --------------------------------------------------------------------------
   - id: marstek_solar_excess_switch
     alias: "Marstek: Solar Excess - Switch to Emptiest"
-    description: "Bij zonoverschot: switch naar leegste batterij om op te laden"
+    description: "Bij zonoverschot EN bijna volle batterij: switch naar leegste batterij"
     trigger:
       - platform: numeric_state
         entity_id: sensor.p1_meter_power
@@ -548,6 +553,18 @@ automation:
       - condition: template
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_emptiest') }}
+
+      # Actieve batterij SOC >= 85% (bijna vol) - anders overflow charging
+      - condition: template
+        value_template: >
+          {% set active = states('input_text.active_battery_fase') %}
+          {% if active == 'fase_a' %}
+            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) >= 85 }}
+          {% elif active == 'fase_b' %}
+            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) >= 85 }}
+          {% else %}
+            {{ states('sensor.marstek_venuse_state_of_charge')|float(0) >= 85 }}
+          {% endif %}
 
     action:
       # Notificatie
@@ -956,6 +973,172 @@ automation:
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"
         continue_on_error: true
+
+  # --------------------------------------------------------------------------
+  # OVERFLOW CHARGING - Tweede batterij laden bij hoge PV productie
+  # --------------------------------------------------------------------------
+  - id: marstek_overflow_charging_start
+    alias: "Marstek: Overflow Charging Start"
+    description: "Bij hoge PV productie en niet-volle batterij, activeer tweede batterij in Passive mode"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        below: -200
+        for:
+          minutes: 1
+    condition:
+      # Systeem enabled
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Geen overflow al actief
+      - condition: template
+        value_template: "{{ states('input_text.overflow_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
+      # Actieve batterij SOC < 85% (niet bijna vol, dus niet switchen maar overflow)
+      - condition: template
+        value_template: >
+          {% set active = states('input_text.active_battery_fase') %}
+          {% if active == 'fase_a' %}
+            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(100) < 85 }}
+          {% elif active == 'fase_b' %}
+            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100) < 85 }}
+          {% else %}
+            {{ states('sensor.marstek_venuse_state_of_charge')|float(100) < 85 }}
+          {% endif %}
+
+    action:
+      - variables:
+          # Bereken power: |P1| met max 1500W
+          overflow_power: "{{ [states('sensor.p1_meter_power')|float(0)|abs|int, 1500]|min }}"
+          active: "{{ states('input_text.active_battery_fase') }}"
+          # Bepaal leegste inactieve batterij
+          emptiest_inactive: >
+            {% set socs = {
+              'fase_a': states('sensor.marstek_venuse_d828_state_of_charge')|float(100),
+              'fase_b': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100),
+              'fase_c': states('sensor.marstek_venuse_state_of_charge')|float(100)
+            } %}
+            {% set inactive = socs | dictsort(by='value') | rejectattr('0', 'eq', active) | list %}
+            {{ inactive[0][0] if inactive else 'fase_a' }}
+
+      # Zet overflow batterij in Passive mode
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ emptiest_inactive == 'fase_a' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                  power: "{{ -overflow_power }}"
+                  duration: 1800
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ emptiest_inactive == 'fase_b' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                  power: "{{ -overflow_power }}"
+                  duration: 1800
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ emptiest_inactive == 'fase_c' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                  power: "{{ -overflow_power }}"
+                  duration: 1800
+                continue_on_error: true
+
+      # Track welke batterij in overflow is
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: "{{ emptiest_inactive }}"
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Charging"
+          message: >
+            PV overflow: {{ states('sensor.p1_meter_power')|abs }}W
+            {{ emptiest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            in Passive mode @ {{ overflow_power }}W
+
+  # --------------------------------------------------------------------------
+  # OVERFLOW CHARGING STOP - Terug naar normaal bij verbruik
+  # --------------------------------------------------------------------------
+  - id: marstek_overflow_charging_stop
+    alias: "Marstek: Overflow Charging Stop"
+    description: "Stop overflow charging wanneer P1 positief wordt (verbruik)"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        above: 100
+        for:
+          minutes: 1
+    condition:
+      # Er is een overflow batterij actief
+      - condition: template
+        value_template: "{{ states('input_text.overflow_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+
+    action:
+      - variables:
+          overflow_bat: "{{ states('input_text.overflow_battery_fase') }}"
+
+      # Zet overflow batterij terug naar Manual
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ overflow_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Clear overflow tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.overflow_battery_fase
+        data:
+          value: ""
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Overflow Gestopt"
+          message: >
+            Verbruik gedetecteerd ({{ states('sensor.p1_meter_power') }}W)
+            {{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            terug naar Manual mode
 
 # ============================================================================
 # SCRIPTS
