@@ -187,15 +187,6 @@ cards:
           action: call-service
           service: script.marstek_overflow_stop
 
-  # Overflow Instellingen
-  - type: entities
-    title: ⚡ Overflow Instellingen
-    entities:
-      - entity: input_number.overflow_power
-        name: Laadvermogen
-      - entity: input_number.overflow_duration
-        name: Duur
-
   # Emergency Stop
   - type: button
     name: 🛑 STOP - Alle naar Manual
@@ -212,9 +203,12 @@ cards:
     hours_to_show: 24
     entities:
       - input_text.active_battery_fase
+      - input_text.overflow_battery_fase
       - input_boolean.battery_rotation_enabled
       - automation.marstek_solar_excess_switch_to_emptiest
       - automation.marstek_grid_consumption_switch_to_fullest
+      - automation.marstek_overflow_charging_start
+      - automation.marstek_overflow_charging_stop
 
   # Instellingen
   - type: entities
@@ -250,7 +244,11 @@ cards:
         name: Zonuren Morgen
       - entity: sensor.marstek_expected_pv_tomorrow
         name: Verwachte PV Productie
-      - type: divider
+
+  # Laadplan
+  - type: entities
+    title: 🔋 Laadplan
+    entities:
       - entity: sensor.marstek_net_charging_deficit
         name: Netto Te Laden
         icon: mdi:battery-charging-outline
@@ -263,3 +261,12 @@ cards:
       - entity: sensor.marstek_charging_plan
         name: Laadplan Vannacht
         icon: mdi:battery-charging-wireless
+
+  # Overflow Instellingen
+  - type: entities
+    title: ⚡ Overflow Instellingen
+    entities:
+      - entity: input_number.overflow_power
+        name: Laadvermogen
+      - entity: input_number.overflow_duration
+        name: Duur

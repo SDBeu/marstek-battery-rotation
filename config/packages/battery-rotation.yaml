@@ -1085,6 +1085,15 @@ automation:
         data:
           value: "{{ emptiest_inactive }}"
 
+      # Logbook entry voor Recente Activiteit
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: >
+            {{ emptiest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            gestart @ {{ overflow_power }}W (PV: {{ states('sensor.p1_meter_power')|abs }}W)
+          entity_id: input_text.overflow_battery_fase
+
       # Notificatie
       - service: notify.persistent_notification
         data:
@@ -1150,6 +1159,15 @@ automation:
           entity_id: input_text.overflow_battery_fase
         data:
           value: ""
+
+      # Logbook entry voor Recente Activiteit
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: >
+            {{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            gestopt (verbruik: {{ states('sensor.p1_meter_power') }}W)
+          entity_id: input_text.overflow_battery_fase
 
       # Notificatie
       - service: notify.persistent_notification
@@ -1322,6 +1340,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: "fase_a"
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: "Fase A handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
@@ -1344,6 +1367,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: "fase_b"
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: "Fase B handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
@@ -1366,6 +1394,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: "fase_c"
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: "Fase C handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
@@ -1406,6 +1439,11 @@ script:
           entity_id: input_text.overflow_battery_fase
         data:
           value: ""
+      - service: logbook.log
+        data:
+          name: "Overflow Charging"
+          message: "{{ overflow_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }} handmatig gestopt"
+          entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Gestopt"
