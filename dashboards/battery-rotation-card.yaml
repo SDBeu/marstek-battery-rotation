@@ -1,15 +1,18 @@
-type: custom:tabbed-card
-options:
-  styles:
-    '--mdc-theme-primary': '#2196F3'
-    '--mdc-tab-text-label-color-default': '#888888'
-tabs:
+type: vertical-stack
+cards:
+  # Tab Selector (acts as navigation)
+  - type: entities
+    entities:
+      - entity: input_select.dashboard_tab
+        name: 📑 Dashboard Sectie
+
   # ==========================================================================
   # TAB 1: STATUS - Real-time Monitoring
   # ==========================================================================
-  - attributes:
-      label: Status
-      icon: mdi:information-outline
+  - type: conditional
+    conditions:
+      - entity: input_select.dashboard_tab
+        state: "Status"
     card:
       type: vertical-stack
       cards:
@@ -183,9 +186,10 @@ tabs:
   # ==========================================================================
   # TAB 2: NACHTLADEN - Planning
   # ==========================================================================
-  - attributes:
-      label: Nachtladen
-      icon: mdi:weather-night
+  - type: conditional
+    conditions:
+      - entity: input_select.dashboard_tab
+        state: "Nachtladen"
     card:
       type: vertical-stack
       cards:
@@ -269,9 +273,10 @@ tabs:
   # ==========================================================================
   # TAB 3: BESTURING - Manual Controls
   # ==========================================================================
-  - attributes:
-      label: Besturing
-      icon: mdi:controller
+  - type: conditional
+    conditions:
+      - entity: input_select.dashboard_tab
+        state: "Besturing"
     card:
       type: vertical-stack
       cards:
@@ -380,9 +385,10 @@ tabs:
   # ==========================================================================
   # TAB 4: INSTELLINGEN - Configuration
   # ==========================================================================
-  - attributes:
-      label: Instellingen
-      icon: mdi:cog-outline
+  - type: conditional
+    conditions:
+      - entity: input_select.dashboard_tab
+        state: "Instellingen"
     card:
       type: vertical-stack
       cards:
@@ -419,9 +425,10 @@ tabs:
   # ==========================================================================
   # TAB 5: LOGBOEK - History
   # ==========================================================================
-  - attributes:
-      label: Logboek
-      icon: mdi:clipboard-text-outline
+  - type: conditional
+    conditions:
+      - entity: input_select.dashboard_tab
+        state: "Logboek"
     card:
       type: vertical-stack
       cards:

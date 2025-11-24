@@ -405,6 +405,17 @@ input_text:
     icon: mdi:battery-arrow-up
 
 input_select:
+  dashboard_tab:
+    name: "Dashboard Sectie"
+    options:
+      - "Status"
+      - "Nachtladen"
+      - "Besturing"
+      - "Instellingen"
+      - "Logboek"
+    initial: "Status"
+    icon: mdi:view-dashboard
+
   night_charging_mode:
     name: "Nachtladen Modus"
     options:
