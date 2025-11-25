@@ -283,28 +283,25 @@ cards:
         # Manuele Controle
         - type: entities
           title: 🔋 Manuele Batterij Activatie
-        - type: horizontal-stack
-          cards:
+          entities:
             - type: button
               name: Activeer Fase A
               icon: mdi:battery-charging-50
-              show_state: false
+              action_name: Activeer
               tap_action:
                 action: call-service
                 service: script.marstek_activate_fase_a
-
             - type: button
               name: Activeer Fase B
               icon: mdi:battery-charging-50
-              show_state: false
+              action_name: Activeer
               tap_action:
                 action: call-service
                 service: script.marstek_activate_fase_b
-
             - type: button
               name: Activeer Fase C
               icon: mdi:battery-charging-50
-              show_state: false
+              action_name: Activeer
               tap_action:
                 action: call-service
                 service: script.marstek_activate_fase_c
@@ -312,36 +309,32 @@ cards:
         # Overflow Controle
         - type: entities
           title: ⚡ Overflow Charging (PV Overschot)
-        - type: horizontal-stack
-          cards:
+          entities:
             - type: button
-              name: Overflow A
+              name: Overflow Fase A
               icon: mdi:battery-plus
-              show_state: false
+              action_name: Start
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_fase_a
-
             - type: button
-              name: Overflow B
+              name: Overflow Fase B
               icon: mdi:battery-plus
-              show_state: false
+              action_name: Start
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_fase_b
-
             - type: button
-              name: Overflow C
+              name: Overflow Fase C
               icon: mdi:battery-plus
-              show_state: false
+              action_name: Start
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_fase_c
-
             - type: button
-              name: Stop
+              name: Stop Overflow
               icon: mdi:battery-minus
-              show_state: false
+              action_name: Stop
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_stop
@@ -349,50 +342,48 @@ cards:
         # Peak Assist Controle
         - type: entities
           title: ⚡ Peak Assist (Verbruikspiek)
-        - type: horizontal-stack
-          cards:
+          entities:
             - type: button
-              name: Peak Assist A
+              name: Peak Assist Fase A
               icon: mdi:battery-arrow-down
-              show_state: false
+              action_name: Start
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_fase_a
-
             - type: button
-              name: Peak Assist B
+              name: Peak Assist Fase B
               icon: mdi:battery-arrow-down
-              show_state: false
+              action_name: Start
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_fase_b
-
             - type: button
-              name: Peak Assist C
+              name: Peak Assist Fase C
               icon: mdi:battery-arrow-down
-              show_state: false
+              action_name: Start
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_fase_c
-
             - type: button
-              name: Stop
+              name: Stop Peak Assist
               icon: mdi:stop
-              show_state: false
+              action_name: Stop
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_stop
 
         # Emergency Stop
-        - type: button
-          name: 🛑 STOP - Alle naar Manual
-          icon: mdi:stop-circle
-          show_state: false
-          tap_action:
-            action: call-service
-            service: script.marstek_all_batteries_manual
-            confirmation:
-              text: Weet je zeker dat je alle batterijen wilt stoppen?
+        - type: entities
+          entities:
+            - type: button
+              name: 🛑 Emergency Stop - Alle batterijen naar Manual
+              icon: mdi:stop-circle
+              action_name: STOP
+              tap_action:
+                action: call-service
+                service: script.marstek_all_batteries_manual
+                confirmation:
+                  text: Weet je zeker dat je alle batterijen wilt stoppen?
 
   # ==========================================================================
   # TAB 4: INSTELLINGEN - Configuration
