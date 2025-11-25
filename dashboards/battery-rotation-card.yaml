@@ -288,6 +288,7 @@ cards:
             - type: button
               name: Activeer Fase A
               icon: mdi:battery-charging-50
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_activate_fase_a
@@ -295,6 +296,7 @@ cards:
             - type: button
               name: Activeer Fase B
               icon: mdi:battery-charging-50
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_activate_fase_b
@@ -302,6 +304,7 @@ cards:
             - type: button
               name: Activeer Fase C
               icon: mdi:battery-charging-50
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_activate_fase_c
@@ -314,6 +317,7 @@ cards:
             - type: button
               name: Overflow A
               icon: mdi:battery-plus
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_fase_a
@@ -321,6 +325,7 @@ cards:
             - type: button
               name: Overflow B
               icon: mdi:battery-plus
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_fase_b
@@ -328,6 +333,7 @@ cards:
             - type: button
               name: Overflow C
               icon: mdi:battery-plus
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_fase_c
@@ -335,6 +341,7 @@ cards:
             - type: button
               name: Stop
               icon: mdi:battery-minus
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_overflow_stop
@@ -347,6 +354,7 @@ cards:
             - type: button
               name: Peak Assist A
               icon: mdi:battery-arrow-down
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_fase_a
@@ -354,6 +362,7 @@ cards:
             - type: button
               name: Peak Assist B
               icon: mdi:battery-arrow-down
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_fase_b
@@ -361,6 +370,7 @@ cards:
             - type: button
               name: Peak Assist C
               icon: mdi:battery-arrow-down
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_fase_c
@@ -368,6 +378,7 @@ cards:
             - type: button
               name: Stop
               icon: mdi:stop
+              show_state: false
               tap_action:
                 action: call-service
                 service: script.marstek_peak_assist_stop
@@ -376,6 +387,7 @@ cards:
         - type: button
           name: 🛑 STOP - Alle naar Manual
           icon: mdi:stop-circle
+          show_state: false
           tap_action:
             action: call-service
             service: script.marstek_all_batteries_manual
