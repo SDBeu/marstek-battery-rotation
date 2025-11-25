@@ -62,7 +62,7 @@ cards:
                   **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
 
                   Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
-                  Stopt automatisch bij verbruik (P1 > 100W).
+                  Stopt automatisch bij verbruik (P1 > 100W) of na {{ states('input_number.overflow_duration')|int(15) }} minuten.
 
               - type: entities
                 entities:
@@ -86,7 +86,7 @@ cards:
                   **Assist Batterij:** {{ states('input_text.peak_assist_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
 
                   Tweede batterij levert bij in **Passive mode** om verbruikspiek op te vangen.
-                  Stopt automatisch bij normaal verbruik (P1 < 100W).
+                  Stopt na {{ states('input_number.peak_assist_duration')|int(5) }} minuten (timer) of via Stop button.
 
               - type: entities
                 entities:
