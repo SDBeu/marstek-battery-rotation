@@ -449,7 +449,6 @@ cards:
             - automation.marstek_overflow_charging_stop
             - automation.marstek_overflow_charging_timer_finished
             - automation.marstek_peak_assist_start
-            - automation.marstek_peak_assist_stop
             - automation.marstek_peak_assist_timer_finished
             - automation.marstek_peak_aware_night_charging_start
             - automation.marstek_peak_aware_night_charging_pause
