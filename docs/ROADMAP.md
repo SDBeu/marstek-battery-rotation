@@ -665,3 +665,118 @@ De `jaapp/ha-marstek-local-api` integratie is een volledige, werkende Home Assis
 - Testen overflow charging in productie
 - Fine-tunen van thresholds
 - Mogelijk: automatische overflow stop bij SOC > 95%
+
+---
+
+### Session 4 - 2025-11-26
+
+**✅ TROUBLESHOOTING FIXES: DUBBEL LADEN, ROTATIE, MISMATCH DETECTOR**
+
+**Context**:
+Gebruiker had problemen ondervonden en online Claude geraadpleegd. Kreeg uitgebreide troubleshooting document (`marstek_troubleshooting_complete.md`) met 5 geïdentificeerde problemen en oplossingen. Deze sessie: stap-voor-stap implementatie van fixes.
+
+**Problemen Geïdentificeerd**:
+1. ❌ Mode sensors unreliable (geven "unknown" tijdens switches)
+2. ❌ Two batteries on Auto during 5-second overlap (morning mode)
+3. ❌ Morning mode failure (Fase A disappeared at 07:00)
+4. ✅ **OPGELOST**: Old manual schedules interfering (dubbel laden)
+5. ✅ **OPGELOST**: Infinite rotation when all batteries full
+
+**Fix 1: Dubbel Laden (Double Charging)** - Commit `388e142`
+- **Probleem**: Oude manual schedules van Marstek app blijven actief forever, veroorzaken dubbel laden wanneer HA nieuwe schedules toevoegt
+- **Oplossing**: Clear schedules VOOR nachtladen start
+- **Implementatie**:
+  - `marstek_night_charging` automation: clear 3x schedules + 5 sec delay + logbook
+  - `marstek_night_charging_peakaware_start`: clear 3x schedules + 3 sec delay + logbook
+  - Nieuwe script `marstek_clear_all_schedules`: manuele cleanup tool
+  - Dashboard button in Besturing tab met confirmation dialog
+- **Defense in Depth**: Clear ook aan eind morning mode als backup (besproken maar niet geïmplementeerd)
+
+**Fix 2: Oneindige Rotatie Bij Volle Batterijen** - Commit `9689b2b`
+- **Probleem**: Bij alle batterijen ≥95% + solar excess blijft systeem eindeloos roteren tussen volle batterijen
+- **Oplossing**: Auto-stop when all full + auto-start on consumption
+- **Implementatie**:
+  - Binary sensor `binary_sensor.marstek_all_batteries_full` (≥95% check + attributes)
+  - Automation `marstek_auto_stop_all_full`:
+    - Trigger: elke 5 min
+    - Conditions: rotatie ON + all ≥95% + P1 < -200W
+    - Actions: rotatie OFF, all Manual, clear tracking, notificatie
+  - Automation `marstek_auto_start_on_consumption`:
+    - Trigger: P1 > 200W for 2 min
+    - Conditions: rotatie OFF + dagmodus + min 1 bat > 20%
+    - Actions: rotatie ON (triggers volste batterij), notificatie
+- **Resultaat**: PV overflow gaat naar net wanneer alles vol, systeem herstart bij verbruik
+
+**Fix 3: Mismatch Detector (Hybrid Verification)** - Commit `e29177d`
+- **Probleem**: Peak Assist kan triggeren met verkeerde batterij wanneer mode sensors "unknown" zijn
+- **User Insight**: Grid power sensors zijn betrouwbaar, kunnen als fallback dienen
+- **Discussie**: Edge case ontdekt - Manual mode met schedule geeft ook power >0 (false positive)
+- **Oplossing**: Hybrid approach - mode sensor primary, grid power fallback
+- **Implementatie**:
+  - Binary sensor `binary_sensor.marstek_active_battery_mismatch`:
+    - Device class: problem
+    - Logic: Mode "Auto" → OK, Mode "unknown" → check power (>50W = OK), Mode "Manual/Passive" → MISMATCH
+    - Attributes: verification_method, tracked, modes, powers
+    - 50W threshold om idle te filteren
+  - Peak Assist automation: added condition - mismatch sensor moet "off" zijn
+- **Architectuur**: Conservative blocking - when in doubt, block Peak Assist (veiligheid > functionaliteit)
+
+**Fix 4: Toggle Switch voor Schedule Clear Control** - Commit `98aa9af`
+- **User Request**: "Ik wil in instellingen switch (standaard aan) die schedules cleared. Als ik 's avonds toch iets manueel instel, dan zouden die altijd gewist worden, dat wil ik kunnen uitzetten."
+- **Use Case**: Testing scenarios waar test + HA schedules beide actief moeten zijn
+- **Implementatie**:
+  - Input boolean `input_boolean.clear_schedules_before_night_charging` (initial: true)
+  - Both night charging automations: wrapped clear schedules in conditional
+  - Switch ON: clear schedules + notificatie "Oude schedules worden gewist..."
+  - Switch OFF: skip clear + notificatie "Clear overgeslagen (switch UIT). Bestaande schedules blijven actief!"
+  - Dashboard: toggle in Instellingen tab → Algemeen sectie
+- **Benefits**: Flexibility for testing while maintaining safe default behavior
+
+**Timing Analysis Discovery**:
+- Initial error: Stated "grid consumption/peak assist triggeren binnen 2-3 seconden"
+- User correction: "ik dacht dat dat langer was"
+- Reality check:
+  - Grid consumption delay: **2 MINUTES** (not seconds!)
+  - Solar excess delay: **2 MINUTES**
+  - Peak Assist delay: **20 SECONDS**
+  - Battery switch delay: **5 MINUTES** minimum
+- Impact: Reduced urgency of 5→2 sec morning mode fix (deferred)
+
+**Architectural Decisions**:
+1. **Defense in Depth**: Clear schedules at night (primary) + morning (backup safety net)
+   - Trade-off: 10-15 sec extra in morning mode
+   - Benefit: Safety net for edge cases
+2. **Hybrid Verification**: Mode sensor primary, grid power fallback
+   - Prevents false positives from Manual schedules with power
+   - 50W threshold filters idle
+3. **Conservative Blocking**: When system state unreliable, block Peak Assist
+   - Philosophy: Safety over functionality
+
+**Files Modified**:
+- `config/packages/battery-rotation.yaml`:
+  - Added: 1 input_boolean, 1 binary sensor (all_full), 1 binary sensor (mismatch), 2 automations (auto-stop/start), 1 script (clear schedules)
+  - Modified: 2 automations (night charging modes - conditional clear), 1 automation (peak assist - mismatch condition)
+- `dashboards/battery-rotation-card.yaml`:
+  - Added: 1 button (clear schedules), 1 toggle (clear control)
+
+**Test Results**:
+- ✅ YAML syntax valid (all commits)
+- ✅ All automations properly structured
+- ✅ Binary sensors with attributes
+- ✅ Dashboard additions functional
+
+**Deferred/Not Implemented**:
+- ⏸️ Morning mode timing fix (5→2 sec delay) - less urgent after timing discovery
+- ⏸️ Mode sensors unreliable - hardware/firmware issue, can't fix root cause but worked around
+
+**Key Learnings**:
+- User challenges assumptions → leads to better solutions (timing analysis, grid power edge case)
+- Hybrid approaches handle unreliable sensors robustly
+- Toggle switches provide testing flexibility without sacrificing safety
+- Defense in depth: multiple layers better than single point of failure
+- Conservative blocking prevents automation errors during unstable states
+
+**Next Session Focus**:
+- Monitor effectiveness of fixes in production
+- Tune thresholds if needed (50W, 95% SOC, timing delays)
+- Possible future: implement morning mode timing fix if becomes priority
