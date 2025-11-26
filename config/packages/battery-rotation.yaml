@@ -129,6 +129,71 @@ template:
             {% set soc_c = states('sensor.marstek_venuse_state_of_charge')|float(0) %}
             {{ [soc_a, soc_b, soc_c]|max }}
 
+      - name: "Marstek Active Battery Mismatch"
+        unique_id: marstek_active_battery_mismatch
+        device_class: problem
+        state: >
+          {% set tracked = states('input_text.active_battery_fase') %}
+
+          {# Als geen tracked battery, geen mismatch mogelijk #}
+          {% if tracked in ['', 'unknown', 'unavailable'] %}
+            {{ false }}
+          {% else %}
+            {# Haal mode en power op voor tracked battery #}
+            {% if tracked == 'fase_a' %}
+              {% set mode = states('sensor.marstek_venuse_d828_operating_mode') %}
+              {% set power = states('sensor.marstek_venuse_d828_grid_power')|float(0)|abs %}
+            {% elif tracked == 'fase_b' %}
+              {% set mode = states('sensor.marstek_venuse_3_0_9a7d_operating_mode') %}
+              {% set power = states('sensor.marstek_venuse_3_0_9a7d_grid_power')|float(0)|abs %}
+            {% elif tracked == 'fase_c' %}
+              {% set mode = states('sensor.marstek_venuse_operating_mode') %}
+              {% set power = states('sensor.marstek_venuse_grid_power')|float(0)|abs %}
+            {% else %}
+              {% set mode = 'unavailable' %}
+              {% set power = 0 %}
+            {% endif %}
+
+            {# Verificatie logica: Mode sensor primary, grid power fallback #}
+            {% if mode == 'Auto' %}
+              {# Perfect - tracked battery is op Auto mode #}
+              {{ false }}
+            {% elif mode in ['unknown', 'unavailable'] %}
+              {# Mode sensor defect - gebruik grid power als fallback verificatie #}
+              {# Power > 50W = waarschijnlijk actief, < 50W = waarschijnlijk niet actief #}
+              {{ power < 50 }}
+            {% else %}
+              {# Mode is Manual/Passive maar battery is tracked als actief #}
+              {# Dit is definitief een mismatch #}
+              {{ true }}
+            {% endif %}
+          {% endif %}
+        icon: "{{ 'mdi:alert-circle' if this.state == 'on' else 'mdi:check-circle' }}"
+        attributes:
+          tracked: "{{ states('input_text.active_battery_fase') }}"
+          verification_method: >
+            {% set tracked = states('input_text.active_battery_fase') %}
+            {% if tracked in ['', 'unknown', 'unavailable'] %}
+              none
+            {% else %}
+              {% if tracked == 'fase_a' %}
+                {% set mode = states('sensor.marstek_venuse_d828_operating_mode') %}
+              {% elif tracked == 'fase_b' %}
+                {% set mode = states('sensor.marstek_venuse_3_0_9a7d_operating_mode') %}
+              {% else %}
+                {% set mode = states('sensor.marstek_venuse_operating_mode') %}
+              {% endif %}
+              {{ 'mode_sensor' if mode not in ['unknown', 'unavailable'] else 'grid_power_fallback' }}
+            {% endif %}
+          modes:
+            a: "{{ states('sensor.marstek_venuse_d828_operating_mode') }}"
+            b: "{{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') }}"
+            c: "{{ states('sensor.marstek_venuse_operating_mode') }}"
+          powers:
+            a: "{{ states('sensor.marstek_venuse_d828_grid_power') }}"
+            b: "{{ states('sensor.marstek_venuse_3_0_9a7d_grid_power') }}"
+            c: "{{ states('sensor.marstek_venuse_grid_power') }}"
+
   # Night charging sensors
   - sensor:
       - name: "Marstek Capacity Deficit"
@@ -1485,6 +1550,11 @@ automation:
       # Geen overflow charging actief (conflict preventie)
       - condition: template
         value_template: "{{ states('input_text.overflow_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
+      # Geen mismatch tussen tracked en actual battery state
+      - condition: state
+        entity_id: binary_sensor.marstek_active_battery_mismatch
+        state: "off"
 
     action:
       - variables:
