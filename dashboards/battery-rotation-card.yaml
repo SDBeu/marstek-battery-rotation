@@ -31,7 +31,7 @@ cards:
             **Peak Assist:** {{ peak_assist|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }} ⚡
             {% endif %}
 
-            **P1 Meter:** {{ states('sensor.p1_meter_power') }}W
+            ### P1 Meter: **{{ states('sensor.p1_meter_power') }}W**
             {% set p1 = states('sensor.p1_meter_power')|float(0) %}
             {% if p1 < -200 %}
             {% set sensor = states.binary_sensor.marstek_solar_excess_zone %}
