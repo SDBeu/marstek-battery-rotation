@@ -109,6 +109,26 @@ template:
         state: "{{ states('sensor.p1_meter_power')|float(0) > 200 }}"
         icon: "{{ 'mdi:transmission-tower' if this.state == 'on' else 'mdi:transmission-tower-off' }}"
 
+      - name: "Marstek All Batteries Full"
+        unique_id: marstek_all_batteries_full
+        state: >
+          {% set soc_a = states('sensor.marstek_venuse_d828_state_of_charge')|float(0) %}
+          {% set soc_b = states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) %}
+          {% set soc_c = states('sensor.marstek_venuse_state_of_charge')|float(0) %}
+          {{ soc_a >= 95 and soc_b >= 95 and soc_c >= 95 }}
+        icon: "{{ 'mdi:battery' if this.state == 'on' else 'mdi:battery-charging' }}"
+        attributes:
+          lowest_soc: >
+            {% set soc_a = states('sensor.marstek_venuse_d828_state_of_charge')|float(0) %}
+            {% set soc_b = states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) %}
+            {% set soc_c = states('sensor.marstek_venuse_state_of_charge')|float(0) %}
+            {{ [soc_a, soc_b, soc_c]|min }}
+          highest_soc: >
+            {% set soc_a = states('sensor.marstek_venuse_d828_state_of_charge')|float(0) %}
+            {% set soc_b = states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) %}
+            {% set soc_c = states('sensor.marstek_venuse_state_of_charge')|float(0) %}
+            {{ [soc_a, soc_b, soc_c]|max }}
+
   # Night charging sensors
   - sensor:
       - name: "Marstek Capacity Deficit"
@@ -2036,6 +2056,161 @@ automation:
             data:
               title: "✅ Marstek - Alle Batterijen Vol"
               message: "Piekbewust nachtladen voltooid - alle batterijen >= 95%"
+
+  # --------------------------------------------------------------------------
+  # AUTO-STOP WHEN ALL BATTERIES FULL - Voorkomt oneindige rotatie
+  # --------------------------------------------------------------------------
+  - id: marstek_auto_stop_all_full
+    alias: "Marstek: Auto-Stop When All Batteries Full"
+    description: "Zet systeem uit en alle batterijen op Manual wanneer alles vol is"
+    trigger:
+      - platform: time_pattern
+        minutes: "/5"  # Check elke 5 minuten
+    condition:
+      # Rotatie systeem moet aan zijn
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Alle batterijen >= 95% (template check)
+      - condition: template
+        value_template: >
+          {% set soc_a = states('sensor.marstek_venuse_d828_state_of_charge')|float(0) %}
+          {% set soc_b = states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) %}
+          {% set soc_c = states('sensor.marstek_venuse_state_of_charge')|float(0) %}
+          {{ soc_a >= 95 and soc_b >= 95 and soc_c >= 95 }}
+
+      # Nog steeds zonoverschot (teruglevering)
+      - condition: numeric_state
+        entity_id: sensor.p1_meter_power
+        below: -200
+    action:
+      - variables:
+          soc_a: "{{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) }}"
+          soc_b: "{{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) }}"
+          soc_c: "{{ states('sensor.marstek_venuse_state_of_charge')|float(0) }}"
+          p1_power: "{{ states('sensor.p1_meter_power')|float(0) }}"
+
+      # Zet rotatie systeem UIT
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Alle batterijen naar Manual mode
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
+
+      # Clear active battery tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: ""
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Auto-Stop"
+          message: >
+            Alle batterijen vol (A:{{ soc_a|int }}% B:{{ soc_b|int }}% C:{{ soc_c|int }}%)
+            - Teruglevering: {{ (p1_power|abs)|int }}W
+            - Systeem gestopt, PV gaat naar net
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🔋 Marstek - Auto-Stop: Batterijen Vol"
+          message: >
+            Alle batterijen ≥ 95% vol:
+
+            Fase A: {{ soc_a|int }}%
+            Fase B: {{ soc_b|int }}%
+            Fase C: {{ soc_c|int }}%
+
+            Teruglevering: {{ (p1_power|abs)|int }}W
+            Systeem gestopt - PV overflow gaat naar net.
+            Herstart automatisch bij verbruik.
+
+  # --------------------------------------------------------------------------
+  # AUTO-START ON CONSUMPTION - Herstart systeem bij verbruik
+  # --------------------------------------------------------------------------
+  - id: marstek_auto_start_on_consumption
+    alias: "Marstek: Auto-Start When Consumption Detected"
+    description: "Herstart systeem automatisch bij netverbruik als batterijen vol waren"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        above: 200
+        for:
+          minutes: 2  # 2 minuten delay om false positives te voorkomen
+    condition:
+      # Rotatie systeem moet uit zijn (door auto-stop)
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "off"
+
+      # We zijn in dagmodus (niet 's nachts)
+      - condition: template
+        value_template: >
+          {% set now_time = now().time() %}
+          {% set day_start = states('input_datetime.day_mode_start_time') %}
+          {% set night_start = states('input_datetime.night_mode_start_time') %}
+          {% if day_start not in ['unknown', 'unavailable'] and night_start not in ['unknown', 'unavailable'] %}
+            {% set day_h = day_start.split(':')[0]|int %}
+            {% set day_m = day_start.split(':')[1]|int %}
+            {% set night_h = night_start.split(':')[0]|int %}
+            {% set night_m = night_start.split(':')[1]|int %}
+            {% set day_minutes = day_h * 60 + day_m %}
+            {% set night_minutes = night_h * 60 + night_m %}
+            {% set now_minutes = now_time.hour * 60 + now_time.minute %}
+            {% if day_minutes < night_minutes %}
+              {{ now_minutes >= day_minutes and now_minutes < night_minutes }}
+            {% else %}
+              {{ now_minutes >= day_minutes or now_minutes < night_minutes }}
+            {% endif %}
+          {% else %}
+            true
+          {% endif %}
+
+      # Minstens één batterij heeft nog capaciteit (> 20%)
+      - condition: template
+        value_template: >
+          {% set soc_a = states('sensor.marstek_venuse_d828_state_of_charge')|float(0) %}
+          {% set soc_b = states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) %}
+          {% set soc_c = states('sensor.marstek_venuse_state_of_charge')|float(0) %}
+          {{ soc_a > 20 or soc_b > 20 or soc_c > 20 }}
+    action:
+      - variables:
+          p1_power: "{{ states('sensor.p1_meter_power')|float(0) }}"
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🔋 Marstek - Auto-Start: Verbruik Gedetecteerd"
+          message: >
+            Verbruik: {{ p1_power|int }}W
+
+            Systeem herstart automatisch.
+            Volste batterij wordt actief.
+
+      # Zet rotatie systeem AAN (dit triggert manual_toggle_on automation)
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Auto-Start"
+          message: >
+            Verbruik gedetecteerd ({{ p1_power|int }}W) - systeem herstart
+          entity_id: input_boolean.battery_rotation_enabled
 
 # ============================================================================
 # SCRIPTS
