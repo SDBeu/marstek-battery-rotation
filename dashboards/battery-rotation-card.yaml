@@ -385,6 +385,19 @@ cards:
                 confirmation:
                   text: Weet je zeker dat je alle batterijen wilt stoppen?
 
+        # Manual Schedule Cleanup
+        - type: entities
+          entities:
+            - type: button
+              name: 🧹 Clear Manual Schedules
+              icon: mdi:broom
+              action_name: Wissen
+              tap_action:
+                action: call-service
+                service: script.marstek_clear_all_schedules
+                confirmation:
+                  text: Dit wist alle manual schedules van alle batterijen. Doorgaan?
+
   # ==========================================================================
   # TAB 4: INSTELLINGEN - Configuration
   # ==========================================================================

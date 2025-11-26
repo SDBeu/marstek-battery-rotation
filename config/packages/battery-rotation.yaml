@@ -912,6 +912,39 @@ automation:
         entity_id: input_select.night_charging_mode
         state: "Manueel Schema"
     action:
+      # Notificatie: oude schedules worden gewist
+      - service: notify.persistent_notification
+        data:
+          title: "🌙 Marstek - Nachtmodus Voorbereiding"
+          message: "Oude manual schedules worden gewist voor clean start..."
+
+      # Clear oude manual schedules van alle batterijen
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+        continue_on_error: true
+
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+        continue_on_error: true
+
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+        continue_on_error: true
+
+      # Wacht tot clear compleet is (traag process)
+      - delay:
+          seconds: 5
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Night Charging"
+          message: "Manual schedules gewist voor clean start"
+          entity_id: input_boolean.battery_rotation_enabled
+
       # Zet rotatie systeem UIT
       - service: input_boolean.turn_off
         target:
@@ -1597,24 +1630,37 @@ automation:
         entity_id: input_select.night_charging_mode
         state: "Piekbewust Laden"
     action:
+      # Clear oude manual schedules EERST (voor clean start)
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+        continue_on_error: true
+
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+        continue_on_error: true
+
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+        continue_on_error: true
+
+      # Wacht tot clear compleet is
+      - delay:
+          seconds: 3
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Night Charging"
+          message: "Manual schedules gewist - piekbewust laden start"
+          entity_id: input_boolean.battery_rotation_enabled
+
       # Zet rotatie systeem UIT
       - service: input_boolean.turn_off
         target:
           entity_id: input_boolean.battery_rotation_enabled
-
-      # Clear eventuele bestaande manual schedules
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-        continue_on_error: true
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-        continue_on_error: true
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "f15b9f6024d9a2b044ca90e77824a314"
-        continue_on_error: true
 
       # Alle batterijen naar manual (clean slate)
       - service: button.press
@@ -2424,3 +2470,51 @@ script:
         data:
           title: "⚡ Marstek - Peak Assist Gestopt"
           message: "Peak assist handmatig gestopt"
+
+  # Clear all manual schedules (troubleshooting/maintenance)
+  marstek_clear_all_schedules:
+    alias: "Marstek: Clear All Manual Schedules"
+    icon: mdi:broom
+    sequence:
+      # Start notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🧹 Marstek - Manual Schedule Cleanup"
+          message: "Bezig met wissen van alle manual schedules..."
+
+      # Clear schedules Fase A
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+        continue_on_error: true
+
+      - delay:
+          seconds: 1
+
+      # Clear schedules Fase B
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+        continue_on_error: true
+
+      - delay:
+          seconds: 1
+
+      # Clear schedules Fase C
+      - service: marstek_local_api.clear_manual_schedules
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+        continue_on_error: true
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Manual Schedule Cleanup"
+          message: "Alle manual schedules handmatig gewist door gebruiker"
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Success notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "✅ Marstek - Cleanup Voltooid"
+          message: "Alle manual schedules gewist. Je kunt nu veilig nieuwe schedules instellen."
