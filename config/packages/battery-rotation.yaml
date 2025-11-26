@@ -612,6 +612,11 @@ input_boolean:
     initial: false
     icon: mdi:battery-charging-wireless
 
+  clear_schedules_before_night_charging:
+    name: "Clear Schedules Voor Nachtladen"
+    initial: true
+    icon: mdi:broom-clock
+
 timer:
   overflow_charging_timer:
     name: "Overflow Charging Timer"
@@ -997,38 +1002,57 @@ automation:
         entity_id: input_select.night_charging_mode
         state: "Manueel Schema"
     action:
-      # Notificatie: oude schedules worden gewist
-      - service: notify.persistent_notification
-        data:
-          title: "🌙 Marstek - Nachtmodus Voorbereiding"
-          message: "Oude manual schedules worden gewist voor clean start..."
+      # Conditionally clear schedules (if switch enabled)
+      - if:
+          - condition: state
+            entity_id: input_boolean.clear_schedules_before_night_charging
+            state: "on"
+        then:
+          # Notificatie: oude schedules worden gewist
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtmodus Voorbereiding"
+              message: "Oude manual schedules worden gewist voor clean start..."
 
-      # Clear oude manual schedules van alle batterijen
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
-        continue_on_error: true
+          # Clear oude manual schedules van alle batterijen
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+            continue_on_error: true
 
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
-        continue_on_error: true
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+            continue_on_error: true
 
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
-        continue_on_error: true
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+            continue_on_error: true
 
-      # Wacht tot clear compleet is (traag process)
-      - delay:
-          seconds: 5
+          # Wacht tot clear compleet is (traag process)
+          - delay:
+              seconds: 5
 
-      # Logbook entry
-      - service: logbook.log
-        data:
-          name: "Night Charging"
-          message: "Manual schedules gewist voor clean start"
-          entity_id: input_boolean.battery_rotation_enabled
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Manual schedules gewist voor clean start"
+              entity_id: input_boolean.battery_rotation_enabled
+        else:
+          # Switch staat UIT: skip clear
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtmodus Voorbereiding"
+              message: "Clear schedules overgeslagen (switch UIT). Bestaande schedules blijven actief!"
+
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Clear schedules overgeslagen - switch UIT"
+              entity_id: input_boolean.battery_rotation_enabled
 
       # Zet rotatie systeem UIT
       - service: input_boolean.turn_off
@@ -1720,32 +1744,46 @@ automation:
         entity_id: input_select.night_charging_mode
         state: "Piekbewust Laden"
     action:
-      # Clear oude manual schedules EERST (voor clean start)
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
-        continue_on_error: true
+      # Conditionally clear schedules (if switch enabled)
+      - if:
+          - condition: state
+            entity_id: input_boolean.clear_schedules_before_night_charging
+            state: "on"
+        then:
+          # Clear oude manual schedules EERST (voor clean start)
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+            continue_on_error: true
 
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
-        continue_on_error: true
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+            continue_on_error: true
 
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
-        continue_on_error: true
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+            continue_on_error: true
 
-      # Wacht tot clear compleet is
-      - delay:
-          seconds: 3
+          # Wacht tot clear compleet is
+          - delay:
+              seconds: 3
 
-      # Logbook entry
-      - service: logbook.log
-        data:
-          name: "Night Charging"
-          message: "Manual schedules gewist - piekbewust laden start"
-          entity_id: input_boolean.battery_rotation_enabled
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Manual schedules gewist - piekbewust laden start"
+              entity_id: input_boolean.battery_rotation_enabled
+        else:
+          # Switch staat UIT: skip clear
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Clear schedules overgeslagen - piekbewust laden start (switch UIT)"
+              entity_id: input_boolean.battery_rotation_enabled
 
       # Zet rotatie systeem UIT
       - service: input_boolean.turn_off

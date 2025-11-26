@@ -419,6 +419,9 @@ cards:
               name: Nachtmodus Start
             - entity: input_datetime.day_mode_start_time
               name: Dagmodus Start
+            - type: divider
+            - entity: input_boolean.clear_schedules_before_night_charging
+              name: Clear Schedules Voor Nachtladen
 
         # Overflow Instellingen
         - type: entities
