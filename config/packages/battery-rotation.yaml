@@ -97,20 +97,29 @@ template:
           p1_power: "{{ states('sensor.p1_meter_power') }}W"
           last_switch: "{{ states('input_datetime.last_battery_switch') }}"
 
-      # Per-fase batterij power sensoren (gebaseerd op P1 meter)
+      # Per-fase batterij power sensoren (met dynamische icons)
       - name: "Marstek Fase A Power"
         unique_id: marstek_fase_a_power
         unit_of_measurement: "W"
         device_class: power
         state: >
           {{ states('sensor.p1_meter_power_phase_1')|float(0) }}
+        icon: >
+          {% set power = states('sensor.p1_meter_power_phase_1')|float(0) %}
+          {% if power < -50 %}
+            mdi:battery-arrow-up
+          {% elif power > 50 %}
+            mdi:battery-arrow-down
+          {% else %}
+            mdi:battery
+          {% endif %}
         attributes:
           status: >
             {% set power = states('sensor.p1_meter_power_phase_1')|float(0) %}
             {% if power < -50 %}
-              Ontladen ({{ power|abs|round(0) }}W)
+              Ontlaadt {{ power|abs|round(0) }}W
             {% elif power > 50 %}
-              Laden ({{ power|round(0) }}W)
+              Laadt {{ power|round(0) }}W
             {% else %}
               Idle
             {% endif %}
@@ -121,13 +130,22 @@ template:
         device_class: power
         state: >
           {{ states('sensor.p1_meter_power_phase_2')|float(0) }}
+        icon: >
+          {% set power = states('sensor.p1_meter_power_phase_2')|float(0) %}
+          {% if power < -50 %}
+            mdi:battery-arrow-up
+          {% elif power > 50 %}
+            mdi:battery-arrow-down
+          {% else %}
+            mdi:battery
+          {% endif %}
         attributes:
           status: >
             {% set power = states('sensor.p1_meter_power_phase_2')|float(0) %}
             {% if power < -50 %}
-              Ontladen ({{ power|abs|round(0) }}W)
+              Ontlaadt {{ power|abs|round(0) }}W
             {% elif power > 50 %}
-              Laden ({{ power|round(0) }}W)
+              Laadt {{ power|round(0) }}W
             {% else %}
               Idle
             {% endif %}
@@ -138,30 +156,25 @@ template:
         device_class: power
         state: >
           {{ states('sensor.p1_meter_power_phase_3')|float(0) }}
+        icon: >
+          {% set power = states('sensor.p1_meter_power_phase_3')|float(0) %}
+          {% if power < -50 %}
+            mdi:battery-arrow-up
+          {% elif power > 50 %}
+            mdi:battery-arrow-down
+          {% else %}
+            mdi:battery
+          {% endif %}
         attributes:
           status: >
             {% set power = states('sensor.p1_meter_power_phase_3')|float(0) %}
             {% if power < -50 %}
-              Ontladen ({{ power|abs|round(0) }}W)
+              Ontlaadt {{ power|abs|round(0) }}W
             {% elif power > 50 %}
-              Laden ({{ power|round(0) }}W)
+              Laadt {{ power|round(0) }}W
             {% else %}
               Idle
             {% endif %}
-
-      - name: "Marstek Total Battery Power"
-        unique_id: marstek_total_battery_power
-        unit_of_measurement: "W"
-        device_class: power
-        state: >
-          {% set fase_a = states('sensor.p1_meter_power_phase_1')|float(0) %}
-          {% set fase_b = states('sensor.p1_meter_power_phase_2')|float(0) %}
-          {% set fase_c = states('sensor.p1_meter_power_phase_3')|float(0) %}
-          {{ (fase_a + fase_b + fase_c)|round(0) }}
-        attributes:
-          fase_a: "{{ states('sensor.p1_meter_power_phase_1') }}W"
-          fase_b: "{{ states('sensor.p1_meter_power_phase_2') }}W"
-          fase_c: "{{ states('sensor.p1_meter_power_phase_3') }}W"
 
   # Binary sensors voor threshold tracking (timer in dashboard)
   - binary_sensor:

@@ -183,6 +183,23 @@ cards:
               name: Volste Batterij
               icon: mdi:battery-high
 
+        # Batterij levering per fase
+        - type: entities
+          title: 🔌 Batterij Power per Fase
+          entities:
+            - entity: sensor.marstek_fase_a_power
+              name: Fase A (schuin)
+              secondary_info: attribute
+              attribute: status
+            - entity: sensor.marstek_fase_b_power
+              name: Fase B (plat)
+              secondary_info: attribute
+              attribute: status
+            - entity: sensor.marstek_fase_c_power
+              name: Fase C (geen)
+              secondary_info: attribute
+              attribute: status
+
   # ==========================================================================
   # TAB 2: NACHTLADEN - Planning
   # ==========================================================================
