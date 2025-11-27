@@ -925,9 +925,11 @@ automation:
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
 
-      # Geen peak assist actief (conflict preventie)
+      # Peak assist alleen blokkeren als dezelfde batterij gebruikt wordt
       - condition: template
-        value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+        value_template: >
+          {% set peak_bat = states('input_text.peak_assist_battery_fase') %}
+          {{ peak_bat in ['', 'unknown', 'unavailable'] or peak_bat != states('sensor.battery_fullest') }}
 
     action:
       # Start switch lock
@@ -1222,7 +1224,7 @@ automation:
         at: input_datetime.day_mode_start_time
     action:
       # EERST: Start switch lock om race conditions met Peak Assist te voorkomen
-      - service: script.marstek_start_switch_lock
+      #- service: script.marstek_start_switch_lock
 
       # Zet rotatie systeem AAN (directe feedback)
       - service: input_boolean.turn_on
@@ -1614,21 +1616,22 @@ automation:
           assist_power: "{{ states('input_number.peak_assist_power')|int(1000) }}"
           duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
           active: "{{ states('input_text.active_battery_fase') }}"
-          # Bepaal volste inactieve batterij
-          fullest_inactive: >
+          # Bepaal tweede volste batterij (laat volste vrij voor batterij switch)
+          second_fullest_battery: >
             {% set socs = {
               'fase_a': states('sensor.marstek_venuse_d828_state_of_charge')|float(0),
               'fase_b': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0),
               'fase_c': states('sensor.marstek_venuse_state_of_charge')|float(0)
             } %}
-            {% set inactive = socs | dictsort(by='value', reverse=true) | rejectattr('0', 'eq', active) | list %}
-            {{ inactive[0][0] if inactive else 'fase_a' }}
+            {% set all_sorted = socs | dictsort(by='value', reverse=true) | list %}
+            {% set second = all_sorted[1][0] if all_sorted|length > 1 else all_sorted[0][0] %}
+            {{ second if second != active else all_sorted[0][0] }}
 
       # Zet peak assist batterij in Passive mode (positief = ontladen)
       - choose:
           - conditions:
               - condition: template
-                value_template: "{{ fullest_inactive == 'fase_a' }}"
+                value_template: "{{ second_fullest_battery == 'fase_a' }}"
             sequence:
               - service: marstek_local_api.set_passive_mode
                 data:
@@ -1639,7 +1642,7 @@ automation:
 
           - conditions:
               - condition: template
-                value_template: "{{ fullest_inactive == 'fase_b' }}"
+                value_template: "{{ second_fullest_battery == 'fase_b' }}"
             sequence:
               - service: marstek_local_api.set_passive_mode
                 data:
@@ -1650,7 +1653,7 @@ automation:
 
           - conditions:
               - condition: template
-                value_template: "{{ fullest_inactive == 'fase_c' }}"
+                value_template: "{{ second_fullest_battery == 'fase_c' }}"
             sequence:
               - service: marstek_local_api.set_passive_mode
                 data:
@@ -1664,7 +1667,7 @@ automation:
         target:
           entity_id: input_text.peak_assist_battery_fase
         data:
-          value: "{{ fullest_inactive }}"
+          value: "{{ second_fullest_battery }}"
 
       # Start timer voor automatische cleanup
       - service: timer.start
@@ -1678,7 +1681,7 @@ automation:
         data:
           name: "Peak Assist"
           message: >
-            {{ fullest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            {{ second_fullest_battery | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
             gestart: {{ assist_power }}W voor {{ duration_sec // 60 }} minuten
           entity_id: input_text.peak_assist_battery_fase
 
@@ -1687,7 +1690,7 @@ automation:
         data:
           title: "⚡ Marstek - Peak Assist Gestart"
           message: >
-            {{ fullest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            {{ second_fullest_battery | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
             levert {{ assist_power }}W bij voor {{ duration_sec // 60 }} minuten
 
   - id: marstek_peak_assist_timer_finished
@@ -2356,14 +2359,14 @@ automation:
 script:
   # Helper: Start switch lock periode
   marstek_start_switch_lock:
-    alias: "Start Switch Lock (5 min)"
+    alias: "Start Switch Lock (30 sec)"
     mode: restart
     sequence:
       - service: input_boolean.turn_on
         target:
           entity_id: input_boolean.battery_switch_in_progress
       - delay:
-          minutes: 5
+          seconds: 30
       - service: input_boolean.turn_off
         target:
           entity_id: input_boolean.battery_switch_in_progress
