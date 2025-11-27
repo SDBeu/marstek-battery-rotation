@@ -183,6 +183,14 @@ cards:
               name: Volste Batterij
               icon: mdi:battery-high
 
+        # Batterij power per fase
+        - type: entities
+          title: 🔌 Batterij Power per Fase
+          entities:
+            - sensor.marstek_fase_a_power
+            - sensor.marstek_fase_b_power
+            - sensor.marstek_fase_c_power
+
   # ==========================================================================
   # TAB 2: NACHTLADEN - Planning
   # ==========================================================================

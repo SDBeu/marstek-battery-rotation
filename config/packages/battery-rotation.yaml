@@ -104,6 +104,15 @@ template:
         device_class: power
         state: >
           {{ states('sensor.p1_meter_power_phase_1')|float(0) }}
+        icon: >
+          {% set power = states('sensor.p1_meter_power_phase_1')|float(0) %}
+          {% if power < -50 %}
+            mdi:battery-arrow-up
+          {% elif power > 50 %}
+            mdi:battery-arrow-down
+          {% else %}
+            mdi:battery
+          {% endif %}
         attributes:
           status: >
             {% set power = states('sensor.p1_meter_power_phase_1')|float(0) %}
@@ -121,6 +130,15 @@ template:
         device_class: power
         state: >
           {{ states('sensor.p1_meter_power_phase_2')|float(0) }}
+        icon: >
+          {% set power = states('sensor.p1_meter_power_phase_2')|float(0) %}
+          {% if power < -50 %}
+            mdi:battery-arrow-up
+          {% elif power > 50 %}
+            mdi:battery-arrow-down
+          {% else %}
+            mdi:battery
+          {% endif %}
         attributes:
           status: >
             {% set power = states('sensor.p1_meter_power_phase_2')|float(0) %}
@@ -138,6 +156,15 @@ template:
         device_class: power
         state: >
           {{ states('sensor.p1_meter_power_phase_3')|float(0) }}
+        icon: >
+          {% set power = states('sensor.p1_meter_power_phase_3')|float(0) %}
+          {% if power < -50 %}
+            mdi:battery-arrow-up
+          {% elif power > 50 %}
+            mdi:battery-arrow-down
+          {% else %}
+            mdi:battery
+          {% endif %}
         attributes:
           status: >
             {% set power = states('sensor.p1_meter_power_phase_3')|float(0) %}
