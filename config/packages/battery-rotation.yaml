@@ -673,6 +673,23 @@ automation:
       - platform: state
         entity_id: input_boolean.battery_rotation_enabled
         to: "on"
+    condition:
+      # Niet triggeren tijdens automatische ochtend start
+      - condition: template
+        value_template: >
+          {% set day_start = states('input_datetime.day_mode_start_time') %}
+          {% if day_start not in ['unknown', 'unavailable'] %}
+            {% set now_time = now().strftime('%H:%M') %}
+            {% set start_h = day_start.split(':')[0]|int %}
+            {% set start_m = day_start.split(':')[1]|int %}
+            {% set now_h = now().hour %}
+            {% set now_m = now().minute %}
+            {% set diff_minutes = (now_h * 60 + now_m) - (start_h * 60 + start_m) %}
+            {# Alleen triggeren als we NIET binnen 1 minuut van dag start zijn #}
+            {{ diff_minutes < -1 or diff_minutes > 1 }}
+          {% else %}
+            true
+          {% endif %}
     action:
       # Start switch lock
       - service: script.turn_on
