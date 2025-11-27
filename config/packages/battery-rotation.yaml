@@ -2841,6 +2841,60 @@ script:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
         continue_on_error: true
 
+      # Activeer direct de volste batterij in Auto mode
+      - variables:
+          fullest: "{{ states('sensor.battery_fullest') }}"
+
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_auto_mode
+                continue_on_error: true
+              - service: input_text.set_value
+                target:
+                  entity_id: input_text.active_battery_fase
+                data:
+                  value: "fase_a"
+
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_auto_mode
+                continue_on_error: true
+              - service: input_text.set_value
+                target:
+                  entity_id: input_text.active_battery_fase
+                data:
+                  value: "fase_b"
+
+          - conditions:
+              - condition: template
+                value_template: "{{ fullest == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_auto_mode
+                continue_on_error: true
+              - service: input_text.set_value
+                target:
+                  entity_id: input_text.active_battery_fase
+                data:
+                  value: "fase_c"
+
+      # Update last_battery_switch timestamp
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
       # Logbook entry
       - service: logbook.log
         data:
