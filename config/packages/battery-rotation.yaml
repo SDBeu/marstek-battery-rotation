@@ -345,15 +345,19 @@ template:
           {% set avg = states('sensor.p1_meter_average_demand')|float(0) %}
           {% set power = states('input_number.night_charging_power')|float(2000) %}
           {% set peak = states('sensor.p1_meter_peak_demand_current_month')|float(2500) %}
-          {{ (avg + power) < peak }}
+          {% set safety_margin = 0.95 %}
+          {{ (avg + power) < (peak * safety_margin) }}
         attributes:
           current_avg: "{{ states('sensor.p1_meter_average_demand')|float(0)|round(0) }}"
           charging_power: "{{ states('input_number.night_charging_power')|float(2000)|round(0) }}"
           monthly_peak: "{{ states('sensor.p1_meter_peak_demand_current_month')|float(2500)|round(0) }}"
+          safe_limit: >
+            {% set peak = states('sensor.p1_meter_peak_demand_current_month')|float(2500) %}
+            {{ (peak * 0.95)|round(0) }}
           headroom: >
             {% set avg = states('sensor.p1_meter_average_demand')|float(0) %}
             {% set peak = states('sensor.p1_meter_peak_demand_current_month')|float(2500) %}
-            {{ (peak - avg)|round(0) }}
+            {{ ((peak * 0.95) - avg)|round(0) }}
 
       - name: "Marstek Charging Plan"
         unique_id: marstek_charging_plan
@@ -1223,8 +1227,42 @@ automation:
       - platform: time
         at: input_datetime.day_mode_start_time
     action:
-      # EERST: Start switch lock om race conditions met Peak Assist te voorkomen
-      #- service: script.marstek_start_switch_lock
+      # EERST: Stop piekbewust laden indien nog actief (voorkomt conflict)
+      - if:
+          - condition: state
+            entity_id: input_boolean.night_charging_active
+            state: "on"
+        then:
+          - variables:
+              charging_bat: "{{ states('input_text.night_charging_current_battery') }}"
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_a' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasea_schuin_d828_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_b' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_c' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasec_geen_deb8_manual_mode
+                    continue_on_error: true
 
       # Zet rotatie systeem AAN (directe feedback)
       - service: input_boolean.turn_on
@@ -2840,6 +2878,53 @@ script:
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
         continue_on_error: true
+
+      # Stop piekbewust laden indien actief (voorkomt conflict)
+      - if:
+          - condition: state
+            entity_id: input_boolean.night_charging_active
+            state: "on"
+        then:
+          - variables:
+              charging_bat: "{{ states('input_text.night_charging_current_battery') }}"
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_a' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasea_schuin_d828_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_b' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_c' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasec_geen_deb8_manual_mode
+                    continue_on_error: true
+
+          # Reset tracking
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.night_charging_active
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.night_charging_current_battery
+            data:
+              value: ""
 
       # Activeer direct de volste batterij in Auto mode
       - variables:
