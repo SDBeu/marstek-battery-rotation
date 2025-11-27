@@ -185,14 +185,18 @@ template:
               {% endif %}
               {{ 'mode_sensor' if mode not in ['unknown', 'unavailable'] else 'grid_power_fallback' }}
             {% endif %}
-          modes:
-            a: "{{ states('sensor.marstek_venuse_d828_operating_mode') }}"
-            b: "{{ states('sensor.marstek_venuse_3_0_9a7d_operating_mode') }}"
-            c: "{{ states('sensor.marstek_venuse_operating_mode') }}"
-          powers:
-            a: "{{ states('sensor.marstek_venuse_d828_grid_power') }}"
-            b: "{{ states('sensor.marstek_venuse_3_0_9a7d_grid_power') }}"
-            c: "{{ states('sensor.marstek_venuse_grid_power') }}"
+          modes: >
+            {{ {
+              'a': states('sensor.marstek_venuse_d828_operating_mode'),
+              'b': states('sensor.marstek_venuse_3_0_9a7d_operating_mode'),
+              'c': states('sensor.marstek_venuse_operating_mode')
+            } }}
+          powers: >
+            {{ {
+              'a': states('sensor.marstek_venuse_d828_grid_power'),
+              'b': states('sensor.marstek_venuse_3_0_9a7d_grid_power'),
+              'c': states('sensor.marstek_venuse_grid_power')
+            } }}
 
   # Night charging sensors
   - sensor:
@@ -617,6 +621,11 @@ input_boolean:
     initial: true
     icon: mdi:broom-clock
 
+  battery_switch_in_progress:
+    name: "Batterij Switch Bezig"
+    initial: false
+    icon: mdi:swap-horizontal
+
 timer:
   overflow_charging_timer:
     name: "Overflow Charging Timer"
@@ -665,6 +674,11 @@ automation:
         entity_id: input_boolean.battery_rotation_enabled
         to: "on"
     action:
+      # Start switch lock
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
+
       - variables:
           fullest: "{{ states('sensor.battery_fullest') }}"
 
@@ -775,6 +789,11 @@ automation:
           {% endif %}
 
     action:
+      # Start switch lock
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
+
       # Notificatie
       - service: notify.persistent_notification
         data:
@@ -898,6 +917,11 @@ automation:
         value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
 
     action:
+      # Start switch lock
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
+
       # Notificatie
       - service: notify.persistent_notification
         data:
@@ -1181,12 +1205,17 @@ automation:
   # --------------------------------------------------------------------------
   - id: marstek_enable_rotation_in_morning
     alias: "Marstek: Enable Rotation in Morning"
-    description: "Zet batterij rotatie AAN, activeer Fase A, daarna clear nachtschema's"
+    description: "Zet batterij rotatie AAN en activeer Fase A"
     trigger:
       - platform: time
         at: input_datetime.day_mode_start_time
     action:
-      # EERST: Zet rotatie systeem AAN (directe feedback)
+      # EERST: Start switch lock om race conditions met Peak Assist te voorkomen
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
+
+      # Zet rotatie systeem AAN (directe feedback)
       - service: input_boolean.turn_on
         target:
           entity_id: input_boolean.battery_rotation_enabled
@@ -1237,20 +1266,6 @@ automation:
           entity_id: input_text.night_charging_current_battery
         data:
           value: ""
-
-      # LAATST: Clear nacht laadschema's (traag, minder urgent)
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-        continue_on_error: true
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-        continue_on_error: true
-      - service: marstek_local_api.clear_manual_schedules
-        data:
-          device_id: "f15b9f6024d9a2b044ca90e77824a314"
-        continue_on_error: true
 
   # --------------------------------------------------------------------------
   # OVERFLOW CHARGING - Tweede batterij laden bij hoge PV productie
@@ -1578,6 +1593,11 @@ automation:
       # Geen mismatch tussen tracked en actual battery state
       - condition: state
         entity_id: binary_sensor.marstek_active_battery_mismatch
+        state: "off"
+
+      # Geen batterij switch bezig (race condition preventie)
+      - condition: state
+        entity_id: input_boolean.battery_switch_in_progress
         state: "off"
 
     action:
@@ -2325,10 +2345,28 @@ automation:
 # Helper scripts voor manuele controle
 # ============================================================================
 script:
+  # Helper: Start switch lock periode
+  _marstek_start_switch_lock:
+    alias: "Start Switch Lock (5 min)"
+    mode: restart
+    sequence:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.battery_switch_in_progress
+      - delay:
+          minutes: 5
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.battery_switch_in_progress
+
   # Switch naar specifieke batterij
   marstek_activate_fase_a:
     alias: "Activeer Fase A (schuin)"
     sequence:
+      # Start switch lock
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
       # Eerst nieuwe batterij actief maken
       - service: button.press
         target:
@@ -2364,6 +2402,10 @@ script:
   marstek_activate_fase_b:
     alias: "Activeer Fase B (plat)"
     sequence:
+      # Start switch lock
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
       # Eerst nieuwe batterij actief maken
       - service: button.press
         target:
@@ -2399,6 +2441,10 @@ script:
   marstek_activate_fase_c:
     alias: "Activeer Fase C (geen)"
     sequence:
+      # Start switch lock
+      - service: script.turn_on
+        target:
+          entity_id: script._marstek_start_switch_lock
       # Eerst nieuwe batterij actief maken
       - service: button.press
         target:
