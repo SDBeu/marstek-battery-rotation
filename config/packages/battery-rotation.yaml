@@ -692,9 +692,7 @@ automation:
           {% endif %}
     action:
       # Start switch lock
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
 
       - variables:
           fullest: "{{ states('sensor.battery_fullest') }}"
@@ -807,9 +805,7 @@ automation:
 
     action:
       # Start switch lock
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
 
       # Notificatie
       - service: notify.persistent_notification
@@ -935,9 +931,7 @@ automation:
 
     action:
       # Start switch lock
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
 
       # Notificatie
       - service: notify.persistent_notification
@@ -1228,9 +1222,7 @@ automation:
         at: input_datetime.day_mode_start_time
     action:
       # EERST: Start switch lock om race conditions met Peak Assist te voorkomen
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
 
       # Zet rotatie systeem AAN (directe feedback)
       - service: input_boolean.turn_on
@@ -2381,9 +2373,7 @@ script:
     alias: "Activeer Fase A (schuin)"
     sequence:
       # Start switch lock
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
       # Eerst nieuwe batterij actief maken
       - service: button.press
         target:
@@ -2420,9 +2410,7 @@ script:
     alias: "Activeer Fase B (plat)"
     sequence:
       # Start switch lock
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
       # Eerst nieuwe batterij actief maken
       - service: button.press
         target:
@@ -2459,9 +2447,7 @@ script:
     alias: "Activeer Fase C (geen)"
     sequence:
       # Start switch lock
-      - service: script.turn_on
-        target:
-          entity_id: script._marstek_start_switch_lock
+      - service: script._marstek_start_switch_lock
       # Eerst nieuwe batterij actief maken
       - service: button.press
         target:
