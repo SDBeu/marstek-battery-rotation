@@ -590,6 +590,15 @@ input_number:
     unit_of_measurement: "W"
     icon: mdi:flash
 
+  night_charging_target_deficit:
+    name: "Piekbewust Laden Doel Deficit"
+    min: 0
+    max: 15
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "kWh"
+    icon: mdi:battery-charging-outline
+
 input_datetime:
   last_battery_switch:
     name: "Laatste Batterij Switch"
@@ -1881,6 +1890,13 @@ automation:
         data:
           value: "{{ emptiest }}"
 
+      # Sla target deficit op voor later tracking
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.night_charging_target_deficit
+        data:
+          value: "{{ states('sensor.marstek_net_charging_deficit')|float(0) }}"
+
       # Check of safe to charge
       - if:
           - condition: state
@@ -2159,6 +2175,44 @@ automation:
                 target:
                   entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
+
+      # Check of deficit doel bereikt is
+      - variables:
+          target_deficit: "{{ states('input_number.night_charging_target_deficit')|float(0) }}"
+          current_deficit: "{{ states('sensor.marstek_net_charging_deficit')|float(0) }}"
+          charged_kwh: "{{ (target_deficit - current_deficit)|round(2) }}"
+          deficit_reached: "{{ current_deficit <= 0.2 }}"  # 200Wh marge
+
+      # Als deficit bereikt: stop laden (zelfs als batterij niet vol)
+      - if:
+          - condition: template
+            value_template: "{{ deficit_reached }}"
+        then:
+          # Stop piekbewust laden
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.night_charging_active
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.night_charging_current_battery
+            data:
+              value: ""
+          - service: input_number.set_value
+            target:
+              entity_id: input_number.night_charging_target_deficit
+            data:
+              value: 0
+
+          # Notificatie
+          - service: notify.persistent_notification
+            data:
+              title: "✅ Marstek - Doel Bereikt"
+              message: >
+                Piekbewust laden gestopt - {{ charged_kwh }} kWh geladen
+                (doel was {{ target_deficit }} kWh)
+
+          # Stop automation (skip rest)
+          - stop: "Deficit doel bereikt"
 
       # Als er een volgende batterij is, start die
       - if:
@@ -2925,6 +2979,11 @@ script:
               entity_id: input_text.night_charging_current_battery
             data:
               value: ""
+          - service: input_number.set_value
+            target:
+              entity_id: input_number.night_charging_target_deficit
+            data:
+              value: 0
 
       # Activeer direct de volste batterij in Auto mode
       - variables:
