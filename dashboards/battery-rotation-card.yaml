@@ -187,9 +187,9 @@ cards:
         - type: entities
           title: 🔌 Batterij Power per Fase
           entities:
-            - sensor.marstek_fase_a_power
-            - sensor.marstek_fase_b_power
-            - sensor.marstek_fase_c_power
+            - entity: sensor.marstek_fase_a_power
+            - entity: sensor.marstek_fase_b_power
+            - entity: sensor.marstek_fase_c_power
 
   # ==========================================================================
   # TAB 2: NACHTLADEN - Planning
