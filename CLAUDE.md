@@ -14,12 +14,31 @@
 Dit project biedt een API interface voor het uitlezen en aansturen van een Marstek Venus E batterij via de Local API (UDP JSON-RPC). Het eindoel is een MQTT bridge voor Home Assistant integratie met support voor meerdere batterijen.
 
 ## Batterij Details
+
+### Fase A (schuin - d828)
 - **Model**: Marstek Venus E
-- **IP Adres**: 192.168.0.108
+- **IP Adres**: 192.168.6.80
+- **API Port**: 30000 (UDP)
+- **BLE MAC**: acd92968d828
+- **Device ID**: c1fbfff25b11fcecf3530135b0b08f2c
+
+### Fase B (plat - 9a7d)
+- **Model**: Marstek Venus E 3.0
+- **IP Adres**: 192.168.6.213
+- **API Port**: 30000 (UDP)
+- **BLE MAC**: 60323bac9a7d
+- **WiFi MAC**: e89f80efaa17
+- **Device ID**: 79ea26ebcb0b77cc1e4acd1cc5af41f6
+- **Firmware**: v143
+
+### Fase C (geen - deb8)
+- **Model**: Marstek Venus E
+- **IP Adres**: 192.168.6.144
 - **API Port**: 30000 (UDP)
 - **BLE MAC**: acd92968deb8
 - **WiFi MAC**: 8c9a8f96ed1f
-- **Device ID**: VenusE-acd92968deb8
+- **Device ID**: f15b9f6024d9a2b044ca90e77824a314
+- **VenusE ID**: VenusE-acd92968deb8
 
 ## API Protocol
 
