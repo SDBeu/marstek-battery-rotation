@@ -177,8 +177,8 @@ cards:
         - type: entities
           title: 🌙 Nachtladen
           entities:
-            - entity: input_select.night_charging_mode
-              name: Laadmodus
+            - entity: input_boolean.night_charging_enabled
+              name: Nachtladen
             - type: divider
             - entity: input_number.desired_total_capacity
               name: Gewenste Capaciteit bij Dagstart
