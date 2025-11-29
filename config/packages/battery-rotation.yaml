@@ -569,6 +569,7 @@ input_select:
     options:
       - "Status"
       - "Nachtladen"
+      - "Weekend"
       - "Besturing"
       - "Instellingen"
       - "Logboek"
@@ -631,7 +632,6 @@ input_number:
     unit_of_measurement: "W"
     icon: mdi:flash
 
-
 input_datetime:
   last_battery_switch:
     name: "Laatste Batterij Switch"
@@ -661,6 +661,11 @@ input_boolean:
     name: "Nachtladen"
     initial: true
     icon: mdi:battery-charging-wireless
+
+  weekend_charging_enabled:
+    name: "Weekend Laden"
+    initial: true
+    icon: mdi:calendar-weekend
 
   clear_schedules_before_night_charging:
     name: "Clear Schedules Voor Nachtladen"
@@ -1737,6 +1742,63 @@ automation:
           message: >
             Verbruik gedetecteerd ({{ p1_power|int }}W) - systeem herstart
           entity_id: input_boolean.battery_rotation_enabled
+
+  # --------------------------------------------------------------------------
+  # WEEKEND CHARGING - Tijd Aanpassing
+  # --------------------------------------------------------------------------
+  - id: marstek_weekend_charging_enable
+    alias: "Marstek: Weekend Charging Enable"
+    description: "Pas tijden aan naar weekend schema wanneer weekendladen wordt ingeschakeld"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.weekend_charging_enabled
+        to: "on"
+    action:
+      # Zet naar weekend tijden
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.night_mode_start_time
+        data:
+          time: "11:00:00"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.day_mode_start_time
+        data:
+          time: "17:00:00"
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "📅 Marstek - Weekendladen"
+          message: "Weekend schema actief: laden 11:00-17:00"
+
+  - id: marstek_weekend_charging_disable
+    alias: "Marstek: Weekend Charging Disable"
+    description: "Zet tijden terug naar standaard schema wanneer weekendladen wordt uitgeschakeld"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.weekend_charging_enabled
+        to: "off"
+    action:
+      # Zet terug naar standaard tijden
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.night_mode_start_time
+        data:
+          time: "01:00:00"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.day_mode_start_time
+        data:
+          time: "07:00:00"
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "📅 Marstek - Standaard Schema"
+          message: "Terug naar normaal: laden 01:00-07:00"
 
 # ============================================================================
 # SCRIPTS

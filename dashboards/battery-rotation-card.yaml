@@ -74,6 +74,8 @@ cards:
               name: Batterij Rotatie
             - entity: input_boolean.night_charging_enabled
               name: Nachtladen
+            - entity: input_boolean.weekend_charging_enabled
+              name: Weekendladen
 
         # SOC Overzicht
         - type: horizontal-stack
