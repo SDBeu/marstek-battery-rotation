@@ -71,6 +71,8 @@ cards:
           entities:
             - entity: input_boolean.battery_rotation_enabled
               name: Batterij Rotatie
+            - entity: input_boolean.night_charging_enabled
+              name: Nachtladen
 
         # SOC Overzicht
         - type: horizontal-stack
@@ -177,9 +179,6 @@ cards:
         - type: entities
           title: 🌙 Nachtladen
           entities:
-            - entity: input_boolean.night_charging_enabled
-              name: Nachtladen
-            - type: divider
             - entity: input_number.desired_total_capacity
               name: Gewenste Capaciteit bij Dagstart
             - entity: sensor.marstek_capacity_deficit
