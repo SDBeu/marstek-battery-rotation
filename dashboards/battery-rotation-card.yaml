@@ -215,6 +215,18 @@ cards:
               name: Laadplan Vannacht
               icon: mdi:battery-charging-wireless
 
+        # Nachtladen Instellingen
+        - type: entities
+          title: ⚙️ Nachtladen Instellingen
+          entities:
+            - entity: input_datetime.night_mode_start_time
+              name: Nachtmodus Start
+            - entity: input_datetime.day_mode_start_time
+              name: Dagmodus Start
+            - type: divider
+            - entity: input_boolean.clear_schedules_before_night_charging
+              name: Clear Schedules Voor Nachtladen
+
   # ==========================================================================
   # TAB 3: BESTURING - Manual Controls
   # ==========================================================================
@@ -326,14 +338,6 @@ cards:
           entities:
             - entity: input_number.battery_switch_delay_minutes
               name: Min. Tijd Tussen Switches
-            - type: divider
-            - entity: input_datetime.night_mode_start_time
-              name: Nachtmodus Start
-            - entity: input_datetime.day_mode_start_time
-              name: Dagmodus Start
-            - type: divider
-            - entity: input_boolean.clear_schedules_before_night_charging
-              name: Clear Schedules Voor Nachtladen
 
         # Overflow Instellingen
         - type: entities
