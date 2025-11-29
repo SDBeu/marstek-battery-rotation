@@ -298,6 +298,15 @@ cards:
                 action: call-service
                 service: script.marstek_overflow_stop
 
+        # Overflow Instellingen
+        - type: entities
+          title: ⚙️ Overflow Instellingen
+          entities:
+            - entity: input_number.overflow_power
+              name: Laadvermogen
+            - entity: input_number.overflow_duration
+              name: Duur
+
         # Emergency Stop
         - type: entities
           entities:
@@ -340,15 +349,6 @@ cards:
           entities:
             - entity: input_number.battery_switch_delay_minutes
               name: Min. Tijd Tussen Switches
-
-        # Overflow Instellingen
-        - type: entities
-          title: ⚡ Overflow Charging
-          entities:
-            - entity: input_number.overflow_power
-              name: Laadvermogen
-            - entity: input_number.overflow_duration
-              name: Duur
 
   # ==========================================================================
   # TAB 5: LOGBOEK - History

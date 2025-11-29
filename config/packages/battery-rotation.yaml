@@ -1970,6 +1970,7 @@ script:
     sequence:
       - variables:
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
+          overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
       - service: marstek_local_api.set_manual_schedule
         data:
           device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
@@ -1977,7 +1978,7 @@ script:
           start_time: "{{ now().strftime('%H:%M') }}"
           end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
           days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: -1000
+          power: "{{ -overflow_power }}"
           enabled: true
         continue_on_error: true
       - service: input_text.set_value
@@ -1993,18 +1994,19 @@ script:
       - service: logbook.log
         data:
           name: "Overflow Charging"
-          message: "Fase A handmatig gestart - Manual Schedule slot 9 @ 1000W"
+          message: "Fase A handmatig gestart - Manual Schedule slot 9 @ {{ overflow_power }}W"
           entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase A Manual Schedule slot 9 @ 1000W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          message: "Fase A Manual Schedule slot 9 @ {{ overflow_power }}W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
 
   marstek_overflow_fase_b:
     alias: "Overflow Fase B"
     sequence:
       - variables:
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
+          overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
       - service: marstek_local_api.set_manual_schedule
         data:
           device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
@@ -2012,7 +2014,7 @@ script:
           start_time: "{{ now().strftime('%H:%M') }}"
           end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
           days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: -1000
+          power: "{{ -overflow_power }}"
           enabled: true
         continue_on_error: true
       - service: input_text.set_value
@@ -2028,18 +2030,19 @@ script:
       - service: logbook.log
         data:
           name: "Overflow Charging"
-          message: "Fase B handmatig gestart - Manual Schedule slot 9 @ 1000W"
+          message: "Fase B handmatig gestart - Manual Schedule slot 9 @ {{ overflow_power }}W"
           entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase B Manual Schedule slot 9 @ 1000W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          message: "Fase B Manual Schedule slot 9 @ {{ overflow_power }}W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
 
   marstek_overflow_fase_c:
     alias: "Overflow Fase C"
     sequence:
       - variables:
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
+          overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
       - service: marstek_local_api.set_manual_schedule
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"
@@ -2047,7 +2050,7 @@ script:
           start_time: "{{ now().strftime('%H:%M') }}"
           end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
           days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: -1000
+          power: "{{ -overflow_power }}"
           enabled: true
         continue_on_error: true
       - service: input_text.set_value
@@ -2063,12 +2066,12 @@ script:
       - service: logbook.log
         data:
           name: "Overflow Charging"
-          message: "Fase C handmatig gestart - Manual Schedule slot 9 @ 1000W"
+          message: "Fase C handmatig gestart - Manual Schedule slot 9 @ {{ overflow_power }}W"
           entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase C Manual Schedule slot 9 @ 1000W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          message: "Fase C Manual Schedule slot 9 @ {{ overflow_power }}W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
 
   marstek_overflow_stop:
     alias: "Stop Overflow"
