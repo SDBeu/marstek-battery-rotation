@@ -68,6 +68,7 @@ cards:
         # Systeem aan/uit
         - type: entities
           title: Systeem
+          show_header_toggle: false
           entities:
             - entity: input_boolean.battery_rotation_enabled
               name: Batterij Rotatie
