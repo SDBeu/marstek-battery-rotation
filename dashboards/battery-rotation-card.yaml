@@ -57,7 +57,7 @@ cards:
 
                   **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
 
-                  Tweede batterij laadt in **Passive mode** om PV overflow op te vangen.
+                  Tweede batterij laadt via **Manual Schedule slot 9** @ **1000W**.
                   Stopt automatisch bij verbruik (P1 > 100W) of na {{ states('input_number.overflow_duration')|int(15) }} minuten.
 
               - type: entities
