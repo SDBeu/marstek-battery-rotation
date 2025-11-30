@@ -569,7 +569,6 @@ input_select:
     options:
       - "Status"
       - "Nachtladen"
-      - "Weekend"
       - "Besturing"
       - "Instellingen"
       - "Logboek"
@@ -666,11 +665,6 @@ input_boolean:
     name: "Weekend Laden"
     initial: true
     icon: mdi:calendar-weekend
-
-  clear_schedules_before_night_charging:
-    name: "Clear Schedules Voor Nachtladen"
-    initial: true
-    icon: mdi:broom-clock
 
   battery_switch_in_progress:
     name: "Batterij Switch Bezig"
@@ -1080,58 +1074,6 @@ automation:
         entity_id: input_boolean.night_charging_enabled
         state: "on"
     action:
-      # Conditionally clear schedules (if switch enabled)
-      - if:
-          - condition: state
-            entity_id: input_boolean.clear_schedules_before_night_charging
-            state: "on"
-        then:
-          # Notificatie: oude schedules worden gewist
-          - service: notify.persistent_notification
-            data:
-              title: "🌙 Marstek - Nachtmodus Voorbereiding"
-              message: "Oude manual schedules worden gewist voor clean start..."
-
-          # Clear oude manual schedules van alle batterijen
-          - service: marstek_local_api.clear_manual_schedules
-            data:
-              device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
-            continue_on_error: true
-
-          - service: marstek_local_api.clear_manual_schedules
-            data:
-              device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
-            continue_on_error: true
-
-          - service: marstek_local_api.clear_manual_schedules
-            data:
-              device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
-            continue_on_error: true
-
-          # Wacht tot clear compleet is (traag process)
-          - delay:
-              seconds: 5
-
-          # Logbook entry
-          - service: logbook.log
-            data:
-              name: "Night Charging"
-              message: "Manual schedules gewist voor clean start"
-              entity_id: input_boolean.battery_rotation_enabled
-        else:
-          # Switch staat UIT: skip clear
-          - service: notify.persistent_notification
-            data:
-              title: "🌙 Marstek - Nachtmodus Voorbereiding"
-              message: "Clear schedules overgeslagen (switch UIT). Bestaande schedules blijven actief!"
-
-          # Logbook entry
-          - service: logbook.log
-            data:
-              name: "Night Charging"
-              message: "Clear schedules overgeslagen - switch UIT"
-              entity_id: input_boolean.battery_rotation_enabled
-
       # Zet rotatie systeem UIT
       - service: input_boolean.turn_off
         target:
@@ -1173,86 +1115,52 @@ automation:
             {% endfor %}
             {{ ns.result }}
 
-      # Als netto deficit > 0: laad batterijen volgens plan
-      - if:
-          - condition: template
-            value_template: "{{ net_deficit > 0 }}"
-        then:
-          # Batterij 1 (meeste ruimte/leegst)
-          - if:
-              - condition: template
-                value_template: "{{ charging_plan[0].power > 0 }}"
-            then:
-              - service: marstek_local_api.set_manual_schedule
-                data:
-                  device_id: "{{ charging_plan[0].device_id }}"
-                  time_num: 0
-                  start_time: "{{ night_start }}"
-                  end_time: "{{ night_end }}"
-                  power: "{{ -charging_plan[0].power }}"
-                  enabled: true
-                continue_on_error: true
+      # ALTIJD alle 3 batterijen slot 0 updaten (overschrijven oude waarde)
+      # Batterij 1 (charging_plan gesorteerd op beschikbare ruimte)
+      - service: marstek_local_api.set_manual_schedule
+        data:
+          device_id: "{{ charging_plan[0].device_id }}"
+          time_num: 0
+          start_time: "{{ night_start }}"
+          end_time: "{{ night_end }}"
+          power: "{{ -charging_plan[0].power if charging_plan[0].power > 0 else 0 }}"
+          enabled: "{{ charging_plan[0].power > 0 }}"
+        continue_on_error: true
 
-          # Batterij 2
-          - if:
-              - condition: template
-                value_template: "{{ charging_plan[1].power > 0 }}"
-            then:
-              - service: marstek_local_api.set_manual_schedule
-                data:
-                  device_id: "{{ charging_plan[1].device_id }}"
-                  time_num: 0
-                  start_time: "{{ night_start }}"
-                  end_time: "{{ night_end }}"
-                  power: "{{ -charging_plan[1].power }}"
-                  enabled: true
-                continue_on_error: true
+      # Batterij 2
+      - service: marstek_local_api.set_manual_schedule
+        data:
+          device_id: "{{ charging_plan[1].device_id }}"
+          time_num: 0
+          start_time: "{{ night_start }}"
+          end_time: "{{ night_end }}"
+          power: "{{ -charging_plan[1].power if charging_plan[1].power > 0 else 0 }}"
+          enabled: "{{ charging_plan[1].power > 0 }}"
+        continue_on_error: true
 
-          # Batterij 3
-          - if:
-              - condition: template
-                value_template: "{{ charging_plan[2].power > 0 }}"
-            then:
-              - service: marstek_local_api.set_manual_schedule
-                data:
-                  device_id: "{{ charging_plan[2].device_id }}"
-                  time_num: 0
-                  start_time: "{{ night_start }}"
-                  end_time: "{{ night_end }}"
-                  power: "{{ -charging_plan[2].power }}"
-                  enabled: true
-                continue_on_error: true
+      # Batterij 3
+      - service: marstek_local_api.set_manual_schedule
+        data:
+          device_id: "{{ charging_plan[2].device_id }}"
+          time_num: 0
+          start_time: "{{ night_start }}"
+          end_time: "{{ night_end }}"
+          power: "{{ -charging_plan[2].power if charging_plan[2].power > 0 else 0 }}"
+          enabled: "{{ charging_plan[2].power > 0 }}"
+        continue_on_error: true
 
-          # Notificatie met laadinfo per batterij
-          - service: notify.persistent_notification
-            data:
-              title: "🌙 Marstek - Nachtladen"
-              message: >
-                Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
-                Netto te laden: {{ net_deficit }} kWh
+      # Notificatie met laadinfo
+      - service: notify.persistent_notification
+        data:
+          title: "🌙 Marstek - Nachtladen"
+          message: >
+            Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
+            Netto te laden: {{ net_deficit }} kWh
 
-                {% for bat in charging_plan if bat.power > 0 %}
-                {{ bat.name }}: {{ bat.charge }} kWh @ {{ bat.power }}W
-                {% endfor %}
-                Periode: {{ night_start }} - {{ night_end }}
-
-        # Geen netto deficit: alles naar Manual
-        else:
-          - service: button.press
-            target:
-              entity_id:
-                - button.fasea_schuin_d828_manual_mode
-                - button.faseb_plat_v3_9a7d_manual_mode
-                - button.fasec_geen_deb8_manual_mode
-            continue_on_error: true
-
-          - service: notify.persistent_notification
-            data:
-              title: "🌙 Marstek - Nachtmodus"
-              message: >
-                Geen nachtladen nodig.
-                Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
-                Alle batterijen op Manual.
+            {% for bat in charging_plan %}
+            {{ bat.name }}: {{ bat.charge }} kWh @ {{ bat.power }}W {{ '(actief)' if bat.power > 0 else '(slot 0 disabled)' }}
+            {% endfor %}
+            Periode: {{ night_start }} - {{ night_end }}
 
   # --------------------------------------------------------------------------
   # MORNING MODE - Enable rotatie en start Fase A
