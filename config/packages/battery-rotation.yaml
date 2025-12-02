@@ -97,6 +97,21 @@ template:
           p1_power: "{{ states('sensor.p1_meter_power') }}W"
           last_switch: "{{ states('input_datetime.last_battery_switch') }}"
 
+      # Actieve batterij SOC (voor low SOC switch trigger)
+      - name: "Active Battery SOC"
+        unique_id: active_battery_soc
+        unit_of_measurement: "%"
+        device_class: battery
+        state: >
+          {% set active = states('input_text.active_battery_fase') %}
+          {% if active == 'fase_a' %}
+            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) }}
+          {% elif active == 'fase_b' %}
+            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) }}
+          {% else %}
+            {{ states('sensor.marstek_venuse_state_of_charge')|float(0) }}
+          {% endif %}
+
       # Per-fase batterij power sensoren (gebaseerd op P1 meter)
       - name: "Marstek Fase A Power"
         unique_id: marstek_fase_a_power
@@ -976,6 +991,131 @@ automation:
           title: "⚡ Marstek - Netverbruik"
           message: >
             Verbruik: {{ states('sensor.p1_meter_power') }}W
+            Switch van {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }}
+            naar {{ state_attr('sensor.battery_fullest', 'label') }} ({{ state_attr('sensor.battery_fullest', 'soc') }}% SOC)
+
+      # Eerst volste batterij activeren
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_auto_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_auto_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_auto_mode
+                continue_on_error: true
+
+      # Wacht op stabilisatie
+      - delay:
+          seconds: 5
+
+      # Dan pas andere batterijen deactiveren
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.battery_fullest') == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+      # Update tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.active_battery_fase
+        data:
+          value: "{{ states('sensor.battery_fullest') }}"
+
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.last_battery_switch
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  # --------------------------------------------------------------------------
+  # LOW SOC - Switch naar volste batterij bij lage SOC
+  # --------------------------------------------------------------------------
+  - id: marstek_low_soc_switch
+    alias: "Marstek: Low SOC - Switch to Fullest"
+    description: "Bij lage SOC (<=12%): switch naar volste batterij"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.active_battery_soc
+        below: 13
+    condition:
+      # Systeem enabled
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Minimale tijd tussen switches
+      - condition: template
+        value_template: >
+          {{ (as_timestamp(now()) - as_timestamp(states('input_datetime.last_battery_switch'))) > (states('input_number.battery_switch_delay_minutes')|float(5) * 60) }}
+
+      # Actieve batterij != volste batterij
+      - condition: template
+        value_template: >
+          {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
+
+      # Volste batterij moet meer dan 15% hebben (anders zinloos)
+      - condition: template
+        value_template: >
+          {{ state_attr('sensor.battery_fullest', 'soc')|float(0) > 15 }}
+
+    action:
+      # Start switch lock
+      - service: script.marstek_start_switch_lock
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "🪫 Marstek - Lage SOC"
+          message: >
+            Actieve batterij SOC: {{ states('sensor.active_battery_soc') }}%
             Switch van {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }}
             naar {{ state_attr('sensor.battery_fullest', 'label') }} ({{ state_attr('sensor.battery_fullest', 'soc') }}% SOC)
 
