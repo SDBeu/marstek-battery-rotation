@@ -56,9 +56,9 @@ cards:
                   ### ⚡ Overflow Charging Actief
 
                   **Overflow Batterij:** {{ states('input_text.overflow_battery_fase')|replace('fase_a', 'Fase A (schuin)')|replace('fase_b', 'Fase B (plat)')|replace('fase_c', 'Fase C (geen)') }}
+                  **Laadvermogen:** {{ states('input_number.overflow_power')|int(1500) }}W (slot 9)
 
-                  Tweede batterij laadt via **Manual Schedule slot 9** @ **1000W**.
-                  Stopt automatisch bij verbruik (P1 > 100W) of na {{ states('input_number.overflow_duration')|int(15) }} minuten.
+                  Stopt automatisch na {{ states('input_number.overflow_duration')|int(30) }} minuten of wanneer PV overschot wegvalt.
 
               - type: entities
                 entities:
