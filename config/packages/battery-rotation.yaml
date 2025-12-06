@@ -1322,6 +1322,8 @@ automation:
             {{ ns.result }}
 
       # ALTIJD alle 3 batterijen slot 0 updaten (overschrijven oude waarde)
+      # Met delays ertussen om UDP conflicts te voorkomen
+
       # Batterij 1 (charging_plan gesorteerd op beschikbare ruimte)
       - service: marstek_local_api.set_manual_schedule
         data:
@@ -1333,6 +1335,9 @@ automation:
           enabled: "{{ charging_plan[0].power > 0 }}"
         continue_on_error: true
 
+      - delay:
+          seconds: 3
+
       # Batterij 2
       - service: marstek_local_api.set_manual_schedule
         data:
@@ -1343,6 +1348,9 @@ automation:
           power: "{{ -charging_plan[1].power if charging_plan[1].power > 0 else 0 }}"
           enabled: "{{ charging_plan[1].power > 0 }}"
         continue_on_error: true
+
+      - delay:
+          seconds: 3
 
       # Batterij 3
       - service: marstek_local_api.set_manual_schedule
