@@ -1493,52 +1493,26 @@ automation:
             {% set inactive = socs | dictsort(by='value') | rejectattr('0', 'eq', active) | list %}
             {{ inactive[0][0] if inactive else 'fase_a' }}
 
-      # Zet overflow batterij in Manual Schedule slot 9
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ emptiest_inactive == 'fase_a' }}"
-            sequence:
-              - service: marstek_local_api.set_manual_schedule
-                data:
-                  device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-                  time_num: 9
-                  start_time: "{{ now().strftime('%H:%M') }}"
-                  end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-                  days: ["{{ now().strftime('%a').lower()[:3] }}"]
-                  power: -1000
-                  enabled: true
-                continue_on_error: true
-
-          - conditions:
-              - condition: template
-                value_template: "{{ emptiest_inactive == 'fase_b' }}"
-            sequence:
-              - service: marstek_local_api.set_manual_schedule
-                data:
-                  device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-                  time_num: 9
-                  start_time: "{{ now().strftime('%H:%M') }}"
-                  end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-                  days: ["{{ now().strftime('%a').lower()[:3] }}"]
-                  power: -1000
-                  enabled: true
-                continue_on_error: true
-
-          - conditions:
-              - condition: template
-                value_template: "{{ emptiest_inactive == 'fase_c' }}"
-            sequence:
-              - service: marstek_local_api.set_manual_schedule
-                data:
-                  device_id: "f15b9f6024d9a2b044ca90e77824a314"
-                  time_num: 9
-                  start_time: "{{ now().strftime('%H:%M') }}"
-                  end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-                  days: ["{{ now().strftime('%a').lower()[:3] }}"]
-                  power: -1000
-                  enabled: true
-                continue_on_error: true
+      # Zet overflow batterij in Manual Schedule slot 9 (met retry)
+      - variables:
+          device_ids:
+            fase_a: "c1fbfff25b11fcecf3530135b0b08f2c"
+            fase_b: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+            fase_c: "f15b9f6024d9a2b044ca90e77824a314"
+          device_names:
+            fase_a: "Fase A"
+            fase_b: "Fase B"
+            fase_c: "Fase C"
+      - service: script.marstek_set_schedule_with_retry
+        data:
+          device_id: "{{ device_ids[emptiest_inactive] }}"
+          device_name: "{{ device_names[emptiest_inactive] }}"
+          time_num: 9
+          start_time: "{{ now().strftime('%H:%M') }}"
+          end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          days: ["{{ now().strftime('%a').lower()[:3] }}"]
+          power: -1000
+          enabled: true
 
       # Track welke batterij in overflow is
       - service: input_text.set_value
