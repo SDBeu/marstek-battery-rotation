@@ -39,8 +39,8 @@ claude mcp remove context7
 
 ### Stap 2: Voeg de correcte servers toe
 ```bash
-claude mcp add sequential-thinking npx -- -y @modelcontextprotocol/server-sequential-thinking
-claude mcp add context7 npx -- -y @upstash/context7-mcp
+claude mcp add sequential-thinking npx --  @modelcontextprotocol/server-sequential-thinking
+claude mcp add context7 npx --  @upstash/context7-mcp
 ```
 
 ### Stap 3: Verifieer de installatie

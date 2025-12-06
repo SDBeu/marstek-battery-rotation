@@ -30,17 +30,6 @@ template:
           {% set available = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(0) %}
           {{ (rated - available) | round(2) }}
 
-      # Totaal systeem capaciteit (correcte som van alle 3 batterijen)
-      - name: "Marstek Total Remaining Capacity"
-        unique_id: marstek_total_remaining_capacity
-        unit_of_measurement: "kWh"
-        icon: mdi:battery-high
-        state: >
-          {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(0) %}
-          {% set cap_b = states('sensor.marstek_fase_b_remaining_capacity')|float(0) %}
-          {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(0) %}
-          {{ (cap_a + cap_b + cap_c) | round(2) }}
-
       # Leegste batterij (voor laden bij zonoverschot)
       # Bij unavailable: assume 100% (vol) zodat die niet geselecteerd wordt
       - name: "Battery Emptiest"
@@ -107,21 +96,6 @@ template:
           fullest: "{{ state_attr('sensor.battery_fullest', 'label') }} ({{ state_attr('sensor.battery_fullest', 'soc') }}%)"
           p1_power: "{{ states('sensor.p1_meter_power') }}W"
           last_switch: "{{ states('input_datetime.last_battery_switch') }}"
-
-      # Actieve batterij SOC (voor low SOC switch trigger)
-      - name: "Active Battery SOC"
-        unique_id: active_battery_soc
-        unit_of_measurement: "%"
-        device_class: battery
-        state: >
-          {% set active = states('input_text.active_battery_fase') %}
-          {% if active == 'fase_a' %}
-            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) }}
-          {% elif active == 'fase_b' %}
-            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) }}
-          {% else %}
-            {{ states('sensor.marstek_venuse_state_of_charge')|float(0) }}
-          {% endif %}
 
       # Per-fase batterij power sensoren (gebaseerd op P1 meter)
       - name: "Marstek Fase A Power"
@@ -456,6 +430,28 @@ template:
           {% set expected_pv = states('sensor.marstek_expected_pv_tomorrow')|float(0) %}
           {{ [0, deficit - expected_pv]|max|round(2) }}
 
+      # Piekbewust laden - veilig om te laden?
+      - name: "Marstek Safe To Charge"
+        unique_id: marstek_safe_to_charge
+        icon: mdi:shield-check
+        state: >
+          {% set avg = states('sensor.p1_meter_average_demand')|float(0) %}
+          {% set power = states('input_number.night_charging_power')|float(2000) %}
+          {% set peak = states('sensor.p1_meter_peak_demand_current_month')|float(2500) %}
+          {% set safety_margin = 0.95 %}
+          {{ (avg + power) < (peak * safety_margin) }}
+        attributes:
+          current_avg: "{{ states('sensor.p1_meter_average_demand')|float(0)|round(0) }}"
+          charging_power: "{{ states('input_number.night_charging_power')|float(2000)|round(0) }}"
+          monthly_peak: "{{ states('sensor.p1_meter_peak_demand_current_month')|float(2500)|round(0) }}"
+          safe_limit: >
+            {% set peak = states('sensor.p1_meter_peak_demand_current_month')|float(2500) %}
+            {{ (peak * 0.95)|round(0) }}
+          headroom: >
+            {% set avg = states('sensor.p1_meter_average_demand')|float(0) %}
+            {% set peak = states('sensor.p1_meter_peak_demand_current_month')|float(2500) %}
+            {{ ((peak * 0.95) - avg)|round(0) }}
+
       - name: "Marstek Charging Plan"
         unique_id: marstek_charging_plan
         icon: mdi:battery-charging-wireless
@@ -584,6 +580,11 @@ input_text:
     initial: ""
     icon: mdi:battery-plus-variant
 
+  peak_assist_battery_fase:
+    name: "Peak Assist Batterij Fase"
+    initial: ""
+    icon: mdi:battery-arrow-down
+
   night_charging_current_battery:
     name: "Huidige Laadbatterij"
     initial: ""
@@ -601,6 +602,13 @@ input_select:
     initial: "Status"
     icon: mdi:view-dashboard
 
+  night_charging_mode:
+    name: "Nachtladen Modus"
+    options:
+      - "Manueel Schema"
+      - "Piekbewust Laden"
+    initial: "Manueel Schema"
+    icon: mdi:battery-charging-wireless
 
 input_number:
   battery_switch_delay_minutes:
@@ -648,6 +656,24 @@ input_number:
     unit_of_measurement: "min"
     icon: mdi:timer
 
+  peak_assist_power:
+    name: "Peak Assist Ontlaadvermogen"
+    min: 100
+    max: 2500
+    step: 100
+    initial: 1000
+    unit_of_measurement: "W"
+    icon: mdi:flash
+
+  peak_assist_duration:
+    name: "Peak Assist Duur"
+    min: 1
+    max: 60
+    step: 1
+    initial: 5
+    unit_of_measurement: "min"
+    icon: mdi:timer
+
   night_charging_power:
     name: "Nachtladen Vermogen"
     min: 500
@@ -656,6 +682,15 @@ input_number:
     initial: 2000
     unit_of_measurement: "W"
     icon: mdi:flash
+
+  night_charging_target_deficit:
+    name: "Piekbewust Laden Doel Deficit"
+    min: 0
+    max: 15
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "kWh"
+    icon: mdi:battery-charging-outline
 
 input_datetime:
   last_battery_switch:
@@ -682,20 +717,15 @@ input_boolean:
     initial: true
     icon: mdi:autorenew
 
-  night_charging_enabled:
-    name: "Nachtladen"
-    initial: true
+  night_charging_active:
+    name: "Piekbewust Laden Actief"
+    initial: false
     icon: mdi:battery-charging-wireless
 
-  weekend_charging_enabled:
-    name: "Weekend Laden"
+  clear_schedules_before_night_charging:
+    name: "Clear Schedules Voor Nachtladen"
     initial: true
-    icon: mdi:calendar-weekend
-
-  overflow_charging_enabled:
-    name: "Automatic Overflow Charging"
-    initial: true
-    icon: mdi:battery-plus
+    icon: mdi:broom-clock
 
   battery_switch_in_progress:
     name: "Batterij Switch Bezig"
@@ -707,6 +737,10 @@ timer:
     name: "Overflow Charging Timer"
     icon: mdi:timer-outline
 
+  peak_assist_timer:
+    name: "Peak Assist Timer"
+    icon: mdi:timer-outline
+
 # ============================================================================
 # AUTOMATIONS
 # ============================================================================
@@ -714,8 +748,6 @@ automation:
   # --------------------------------------------------------------------------
   # MANUAL TOGGLE OFF - Alle batterijen naar Manual
   # --------------------------------------------------------------------------
-  # NOTE: Sequentieel uitvoeren met delays om race conditions te voorkomen
-  # in de shared UDP socket van de marstek_local_api integratie
   - id: marstek_manual_toggle_off
     alias: "Marstek: Manual Toggle OFF"
     description: "Wanneer rotatie manueel uitgezet wordt, alle batterijen naar Manual"
@@ -724,22 +756,12 @@ automation:
         entity_id: input_boolean.battery_rotation_enabled
         to: "off"
     action:
-      # Sequentieel uitvoeren met delays om UDP socket race conditions te voorkomen
       - service: button.press
         target:
-          entity_id: button.fasea_schuin_d828_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.faseb_plat_v3_9a7d_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.fasec_geen_deb8_manual_mode
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
         continue_on_error: true
 
       - service: notify.persistent_notification
@@ -791,17 +813,11 @@ automation:
                 target:
                   entity_id: button.fasea_schuin_d828_auto_mode
                 continue_on_error: true
-              - delay:
-                  seconds: 2
               - service: button.press
                 target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -812,17 +828,11 @@ automation:
                 target:
                   entity_id: button.faseb_plat_v3_9a7d_auto_mode
                 continue_on_error: true
-              - delay:
-                  seconds: 2
               - service: button.press
                 target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -833,17 +843,11 @@ automation:
                 target:
                   entity_id: button.fasec_geen_deb8_auto_mode
                 continue_on_error: true
-              - delay:
-                  seconds: 2
               - service: button.press
                 target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -893,16 +897,16 @@ automation:
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_emptiest') }}
 
-      # Actieve batterij SOC >= 96% (bijna vol) - anders overflow charging
+      # Actieve batterij SOC >= 85% (bijna vol) - anders overflow charging
       - condition: template
         value_template: >
           {% set active = states('input_text.active_battery_fase') %}
           {% if active == 'fase_a' %}
-            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) >= 96 }}
+            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) >= 85 }}
           {% elif active == 'fase_b' %}
-            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) >= 96 }}
+            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) >= 85 }}
           {% else %}
-            {{ states('sensor.marstek_venuse_state_of_charge')|float(0) >= 96 }}
+            {{ states('sensor.marstek_venuse_state_of_charge')|float(0) >= 85 }}
           {% endif %}
 
     action:
@@ -951,7 +955,7 @@ automation:
       - delay:
           seconds: 5
 
-      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
+      # Dan pas andere batterijen deactiveren
       - choose:
           - conditions:
               - condition: template
@@ -959,13 +963,9 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -974,13 +974,9 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -989,13 +985,9 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -1038,6 +1030,12 @@ automation:
       - condition: template
         value_template: >
           {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
+
+      # Peak assist alleen blokkeren als dezelfde batterij gebruikt wordt
+      - condition: template
+        value_template: >
+          {% set peak_bat = states('input_text.peak_assist_battery_fase') %}
+          {{ peak_bat in ['', 'unknown', 'unavailable'] or peak_bat != states('sensor.battery_fullest') }}
 
     action:
       # Start switch lock
@@ -1085,7 +1083,7 @@ automation:
       - delay:
           seconds: 5
 
-      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
+      # Dan pas andere batterijen deactiveren
       - choose:
           - conditions:
               - condition: template
@@ -1093,13 +1091,9 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
+                  entity_id:
+                    - button.faseb_plat_v3_9a7d_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -1108,13 +1102,9 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -1123,150 +1113,9 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
-                continue_on_error: true
-
-      # Update tracking
-      - service: input_text.set_value
-        target:
-          entity_id: input_text.active_battery_fase
-        data:
-          value: "{{ states('sensor.battery_fullest') }}"
-
-      - service: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.last_battery_switch
-        data:
-          datetime: "{{ now().isoformat() }}"
-
-  # --------------------------------------------------------------------------
-  # LOW SOC - Switch naar volste batterij bij lage SOC
-  # --------------------------------------------------------------------------
-  - id: marstek_low_soc_switch
-    alias: "Marstek: Low SOC - Switch to Fullest"
-    description: "Bij lage SOC (<=12%): switch naar volste batterij"
-    trigger:
-      - platform: numeric_state
-        entity_id: sensor.active_battery_soc
-        below: 13
-    condition:
-      # Systeem enabled
-      - condition: state
-        entity_id: input_boolean.battery_rotation_enabled
-        state: "on"
-
-      # Minimale tijd tussen switches
-      - condition: template
-        value_template: >
-          {{ (as_timestamp(now()) - as_timestamp(states('input_datetime.last_battery_switch'))) > (states('input_number.battery_switch_delay_minutes')|float(5) * 60) }}
-
-      # Actieve batterij != volste batterij
-      - condition: template
-        value_template: >
-          {{ states('input_text.active_battery_fase') != states('sensor.battery_fullest') }}
-
-      # Volste batterij moet meer dan 15% hebben (anders zinloos)
-      - condition: template
-        value_template: >
-          {{ state_attr('sensor.battery_fullest', 'soc')|float(0) > 15 }}
-
-    action:
-      # Start switch lock
-      - service: script.marstek_start_switch_lock
-
-      # Notificatie
-      - service: notify.persistent_notification
-        data:
-          title: "🪫 Marstek - Lage SOC"
-          message: >
-            Actieve batterij SOC: {{ states('sensor.active_battery_soc') }}%
-            Switch van {{ states('input_text.active_battery_fase')|replace('fase_a', 'Fase A')|replace('fase_b', 'Fase B')|replace('fase_c', 'Fase C') }}
-            naar {{ state_attr('sensor.battery_fullest', 'label') }} ({{ state_attr('sensor.battery_fullest', 'soc') }}% SOC)
-
-      # Eerst volste batterij activeren
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.battery_fullest') == 'fase_a' }}"
-            sequence:
-              - service: button.press
-                target:
-                  entity_id: button.fasea_schuin_d828_auto_mode
-                continue_on_error: true
-
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.battery_fullest') == 'fase_b' }}"
-            sequence:
-              - service: button.press
-                target:
-                  entity_id: button.faseb_plat_v3_9a7d_auto_mode
-                continue_on_error: true
-
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.battery_fullest') == 'fase_c' }}"
-            sequence:
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_auto_mode
-                continue_on_error: true
-
-      # Wacht op stabilisatie
-      - delay:
-          seconds: 5
-
-      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.battery_fullest') == 'fase_a' }}"
-            sequence:
-              - service: button.press
-                target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
-                continue_on_error: true
-
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.battery_fullest') == 'fase_b' }}"
-            sequence:
-              - service: button.press
-                target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.fasec_geen_deb8_manual_mode
-                continue_on_error: true
-
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.battery_fullest') == 'fase_c' }}"
-            sequence:
-              - service: button.press
-                target:
-                  entity_id: button.fasea_schuin_d828_manual_mode
-                continue_on_error: true
-              - delay:
-                  seconds: 2
-              - service: button.press
-                target:
-                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id:
+                    - button.fasea_schuin_d828_manual_mode
+                    - button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -1293,9 +1142,61 @@ automation:
         at: input_datetime.night_mode_start_time
     condition:
       - condition: state
-        entity_id: input_boolean.night_charging_enabled
-        state: "on"
+        entity_id: input_select.night_charging_mode
+        state: "Manueel Schema"
     action:
+      # Conditionally clear schedules (if switch enabled)
+      - if:
+          - condition: state
+            entity_id: input_boolean.clear_schedules_before_night_charging
+            state: "on"
+        then:
+          # Notificatie: oude schedules worden gewist
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtmodus Voorbereiding"
+              message: "Oude manual schedules worden gewist voor clean start..."
+
+          # Clear oude manual schedules van alle batterijen
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+            continue_on_error: true
+
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+            continue_on_error: true
+
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+            continue_on_error: true
+
+          # Wacht tot clear compleet is (traag process)
+          - delay:
+              seconds: 5
+
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Manual schedules gewist voor clean start"
+              entity_id: input_boolean.battery_rotation_enabled
+        else:
+          # Switch staat UIT: skip clear
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtmodus Voorbereiding"
+              message: "Clear schedules overgeslagen (switch UIT). Bestaande schedules blijven actief!"
+
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Clear schedules overgeslagen - switch UIT"
+              entity_id: input_boolean.battery_rotation_enabled
+
       # Zet rotatie systeem UIT
       - service: input_boolean.turn_off
         target:
@@ -1337,59 +1238,86 @@ automation:
             {% endfor %}
             {{ ns.result }}
 
-      # ALTIJD alle 3 batterijen slot 0 updaten (met retry en notificatie bij falen)
+      # Als netto deficit > 0: laad batterijen volgens plan
+      - if:
+          - condition: template
+            value_template: "{{ net_deficit > 0 }}"
+        then:
+          # Batterij 1 (meeste ruimte/leegst)
+          - if:
+              - condition: template
+                value_template: "{{ charging_plan[0].power > 0 }}"
+            then:
+              - service: marstek_local_api.set_manual_schedule
+                data:
+                  device_id: "{{ charging_plan[0].device_id }}"
+                  time_num: 0
+                  start_time: "{{ night_start }}"
+                  end_time: "{{ night_end }}"
+                  power: "{{ -charging_plan[0].power }}"
+                  enabled: true
+                continue_on_error: true
 
-      # Batterij 1 (charging_plan gesorteerd op beschikbare ruimte)
-      - service: script.marstek_set_schedule_with_retry
-        data:
-          device_id: "{{ charging_plan[0].device_id }}"
-          device_name: "{{ charging_plan[0].name }}"
-          time_num: 0
-          start_time: "{{ night_start }}"
-          end_time: "{{ night_end }}"
-          power: "{{ -charging_plan[0].power if charging_plan[0].power > 0 else 0 }}"
-          enabled: "{{ charging_plan[0].power > 0 }}"
+          # Batterij 2
+          - if:
+              - condition: template
+                value_template: "{{ charging_plan[1].power > 0 }}"
+            then:
+              - service: marstek_local_api.set_manual_schedule
+                data:
+                  device_id: "{{ charging_plan[1].device_id }}"
+                  time_num: 0
+                  start_time: "{{ night_start }}"
+                  end_time: "{{ night_end }}"
+                  power: "{{ -charging_plan[1].power }}"
+                  enabled: true
+                continue_on_error: true
 
-      - delay:
-          seconds: 3
+          # Batterij 3
+          - if:
+              - condition: template
+                value_template: "{{ charging_plan[2].power > 0 }}"
+            then:
+              - service: marstek_local_api.set_manual_schedule
+                data:
+                  device_id: "{{ charging_plan[2].device_id }}"
+                  time_num: 0
+                  start_time: "{{ night_start }}"
+                  end_time: "{{ night_end }}"
+                  power: "{{ -charging_plan[2].power }}"
+                  enabled: true
+                continue_on_error: true
 
-      # Batterij 2
-      - service: script.marstek_set_schedule_with_retry
-        data:
-          device_id: "{{ charging_plan[1].device_id }}"
-          device_name: "{{ charging_plan[1].name }}"
-          time_num: 0
-          start_time: "{{ night_start }}"
-          end_time: "{{ night_end }}"
-          power: "{{ -charging_plan[1].power if charging_plan[1].power > 0 else 0 }}"
-          enabled: "{{ charging_plan[1].power > 0 }}"
+          # Notificatie met laadinfo per batterij
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtladen"
+              message: >
+                Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
+                Netto te laden: {{ net_deficit }} kWh
 
-      - delay:
-          seconds: 3
+                {% for bat in charging_plan if bat.power > 0 %}
+                {{ bat.name }}: {{ bat.charge }} kWh @ {{ bat.power }}W
+                {% endfor %}
+                Periode: {{ night_start }} - {{ night_end }}
 
-      # Batterij 3
-      - service: script.marstek_set_schedule_with_retry
-        data:
-          device_id: "{{ charging_plan[2].device_id }}"
-          device_name: "{{ charging_plan[2].name }}"
-          time_num: 0
-          start_time: "{{ night_start }}"
-          end_time: "{{ night_end }}"
-          power: "{{ -charging_plan[2].power if charging_plan[2].power > 0 else 0 }}"
-          enabled: "{{ charging_plan[2].power > 0 }}"
+        # Geen netto deficit: alles naar Manual
+        else:
+          - service: button.press
+            target:
+              entity_id:
+                - button.fasea_schuin_d828_manual_mode
+                - button.faseb_plat_v3_9a7d_manual_mode
+                - button.fasec_geen_deb8_manual_mode
+            continue_on_error: true
 
-      # Notificatie met laadinfo
-      - service: notify.persistent_notification
-        data:
-          title: "🌙 Marstek - Nachtladen"
-          message: >
-            Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
-            Netto te laden: {{ net_deficit }} kWh
-
-            {% for bat in charging_plan %}
-            {{ bat.name }}: {{ bat.charge }} kWh @ {{ bat.power }}W {{ '(actief)' if bat.power > 0 else '(slot 0 disabled)' }}
-            {% endfor %}
-            Periode: {{ night_start }} - {{ night_end }}
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Nachtmodus"
+              message: >
+                Geen nachtladen nodig.
+                Deficit: {{ deficit }} kWh - PV morgen: {{ expected_pv }} kWh ({{ sunny_hours }}h zon)
+                Alle batterijen op Manual.
 
   # --------------------------------------------------------------------------
   # MORNING MODE - Enable rotatie en start Fase A
@@ -1401,6 +1329,43 @@ automation:
       - platform: time
         at: input_datetime.day_mode_start_time
     action:
+      # EERST: Stop piekbewust laden indien nog actief (voorkomt conflict)
+      - if:
+          - condition: state
+            entity_id: input_boolean.night_charging_active
+            state: "on"
+        then:
+          - variables:
+              charging_bat: "{{ states('input_text.night_charging_current_battery') }}"
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_a' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasea_schuin_d828_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_b' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_c' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasec_geen_deb8_manual_mode
+                    continue_on_error: true
+
       # Zet rotatie systeem AAN (directe feedback)
       - service: input_boolean.turn_on
         target:
@@ -1416,16 +1381,12 @@ automation:
       - delay:
           seconds: 5
 
-      # Deactiveer andere batterijen (sequentieel voor UDP socket stability)
+      # Deactiveer andere batterijen
       - service: button.press
         target:
-          entity_id: button.faseb_plat_v3_9a7d_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.fasec_geen_deb8_manual_mode
+          entity_id:
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
         continue_on_error: true
 
       # Update tracking
@@ -1447,6 +1408,16 @@ automation:
           title: "☀️ Marstek - Dagmodus"
           message: "Batterij rotatie AAN - Fase A geactiveerd"
 
+      # Reset piekbewust laden tracking
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.night_charging_active
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.night_charging_current_battery
+        data:
+          value: ""
+
   # --------------------------------------------------------------------------
   # OVERFLOW CHARGING - Tweede batterij laden bij hoge PV productie
   # --------------------------------------------------------------------------
@@ -1465,26 +1436,25 @@ automation:
         entity_id: input_boolean.battery_rotation_enabled
         state: "on"
 
-      # Overflow charging enabled
-      - condition: state
-        entity_id: input_boolean.overflow_charging_enabled
-        state: "on"
-
       # Geen overflow al actief
       - condition: template
         value_template: "{{ states('input_text.overflow_battery_fase') in ['', 'unknown', 'unavailable'] }}"
 
-      # Actieve batterij SOC < 96% (niet bijna vol, dus niet switchen maar overflow)
+      # Actieve batterij SOC < 85% (niet bijna vol, dus niet switchen maar overflow)
       - condition: template
         value_template: >
           {% set active = states('input_text.active_battery_fase') %}
           {% if active == 'fase_a' %}
-            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(100) < 96 }}
+            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(100) < 85 }}
           {% elif active == 'fase_b' %}
-            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100) < 96 }}
+            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100) < 85 }}
           {% else %}
-            {{ states('sensor.marstek_venuse_state_of_charge')|float(100) < 96 }}
+            {{ states('sensor.marstek_venuse_state_of_charge')|float(100) < 85 }}
           {% endif %}
+
+      # Geen peak assist actief (conflict preventie)
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
 
     action:
       - variables:
@@ -1503,26 +1473,40 @@ automation:
             {% set inactive = socs | dictsort(by='value') | rejectattr('0', 'eq', active) | list %}
             {{ inactive[0][0] if inactive else 'fase_a' }}
 
-      # Zet overflow batterij in Manual Schedule slot 9 (met retry)
-      - variables:
-          device_ids:
-            fase_a: "c1fbfff25b11fcecf3530135b0b08f2c"
-            fase_b: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-            fase_c: "f15b9f6024d9a2b044ca90e77824a314"
-          device_names:
-            fase_a: "Fase A"
-            fase_b: "Fase B"
-            fase_c: "Fase C"
-      - service: script.marstek_set_schedule_with_retry
-        data:
-          device_id: "{{ device_ids[emptiest_inactive] }}"
-          device_name: "{{ device_names[emptiest_inactive] }}"
-          time_num: 9
-          start_time: "{{ now().strftime('%H:%M') }}"
-          end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-          days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: -1000
-          enabled: true
+      # Zet overflow batterij in Passive mode
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ emptiest_inactive == 'fase_a' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                  power: "{{ -overflow_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ emptiest_inactive == 'fase_b' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                  power: "{{ -overflow_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ emptiest_inactive == 'fase_c' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                  power: "{{ -overflow_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
 
       # Track welke batterij in overflow is
       - service: input_text.set_value
@@ -1544,7 +1528,7 @@ automation:
           name: "Overflow Charging"
           message: >
             {{ emptiest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
-            gestart - Manual Schedule slot 9 @ 1000W (PV: {{ states('sensor.p1_meter_power')|abs }}W)
+            gestart @ {{ overflow_power }}W (PV: {{ states('sensor.p1_meter_power')|abs }}W)
           entity_id: input_text.overflow_battery_fase
 
       # Notificatie
@@ -1554,7 +1538,7 @@ automation:
           message: >
             PV overflow: {{ states('sensor.p1_meter_power')|abs }}W
             {{ emptiest_inactive | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
-            Manual Schedule slot 9 @ 1000W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}
+            in Passive mode @ {{ overflow_power }}W voor {{ duration_sec // 60 }} min
 
   # --------------------------------------------------------------------------
   # OVERFLOW CHARGING STOP - Terug naar normaal bij verbruik
@@ -1709,6 +1693,696 @@ automation:
             overflow charging voltooid - terug naar Manual mode
 
   # --------------------------------------------------------------------------
+  # PEAK ASSIST - Tijdelijk bijleveren bij korte verbruikspieken
+  # --------------------------------------------------------------------------
+  - id: marstek_peak_assist_start
+    alias: "Marstek: Peak Assist Start"
+    description: "Bij korte verbruikspiek, activeer volste batterij tijdelijk in Passive mode om bij te leveren"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.p1_meter_power
+        above: 200
+        for:
+          seconds: 20
+    condition:
+      # Systeem enabled
+      - condition: state
+        entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Alleen in dagfase (niet 's nachts)
+      - condition: template
+        value_template: >
+          {% set now_time = now().time() %}
+          {% set day_start = states('input_datetime.day_mode_start_time') %}
+          {% set night_start = states('input_datetime.night_mode_start_time') %}
+          {% if day_start not in ['unknown', 'unavailable'] and night_start not in ['unknown', 'unavailable'] %}
+            {% set day_h = day_start.split(':')[0]|int %}
+            {% set day_m = day_start.split(':')[1]|int %}
+            {% set night_h = night_start.split(':')[0]|int %}
+            {% set night_m = night_start.split(':')[1]|int %}
+            {% set day_minutes = day_h * 60 + day_m %}
+            {% set night_minutes = night_h * 60 + night_m %}
+            {% set now_minutes = now_time.hour * 60 + now_time.minute %}
+            {% if day_minutes < night_minutes %}
+              {{ now_minutes >= day_minutes and now_minutes < night_minutes }}
+            {% else %}
+              {{ now_minutes >= day_minutes or now_minutes < night_minutes }}
+            {% endif %}
+          {% else %}
+            true
+          {% endif %}
+
+      # Geen peak assist al actief
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
+      # Geen overflow charging actief (conflict preventie)
+      - condition: template
+        value_template: "{{ states('input_text.overflow_battery_fase') in ['', 'unknown', 'unavailable'] }}"
+
+      # Geen mismatch tussen tracked en actual battery state
+      - condition: state
+        entity_id: binary_sensor.marstek_active_battery_mismatch
+        state: "off"
+
+      # Geen batterij switch bezig (race condition preventie)
+      - condition: state
+        entity_id: input_boolean.battery_switch_in_progress
+        state: "off"
+
+    action:
+      - variables:
+          assist_power: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+          active: "{{ states('input_text.active_battery_fase') }}"
+          # Bepaal tweede volste batterij (laat volste vrij voor batterij switch)
+          second_fullest_battery: >
+            {% set socs = {
+              'fase_a': states('sensor.marstek_venuse_d828_state_of_charge')|float(0),
+              'fase_b': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0),
+              'fase_c': states('sensor.marstek_venuse_state_of_charge')|float(0)
+            } %}
+            {% set all_sorted = socs | dictsort(by='value', reverse=true) | list %}
+            {% set second = all_sorted[1][0] if all_sorted|length > 1 else all_sorted[0][0] %}
+            {{ second if second != active else all_sorted[0][0] }}
+
+      # Zet peak assist batterij in Passive mode (positief = ontladen)
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ second_fullest_battery == 'fase_a' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                  power: "{{ assist_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ second_fullest_battery == 'fase_b' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                  power: "{{ assist_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ second_fullest_battery == 'fase_c' }}"
+            sequence:
+              - service: marstek_local_api.set_passive_mode
+                data:
+                  device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                  power: "{{ assist_power }}"
+                  duration: "{{ duration_sec }}"
+                continue_on_error: true
+
+      # Track welke batterij in peak assist is
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "{{ second_fullest_battery }}"
+
+      # Start timer voor automatische cleanup
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: >
+            {{ second_fullest_battery | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            gestart: {{ assist_power }}W voor {{ duration_sec // 60 }} minuten
+          entity_id: input_text.peak_assist_battery_fase
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Gestart"
+          message: >
+            {{ second_fullest_battery | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            levert {{ assist_power }}W bij voor {{ duration_sec // 60 }} minuten
+
+  - id: marstek_peak_assist_timer_finished
+    alias: "Marstek: Peak Assist Timer Finished"
+    description: "Zet batterij terug naar Manual wanneer peak assist duration afloopt"
+    trigger:
+      - platform: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.peak_assist_timer
+    condition:
+      # Check of peak assist tracking nog actief is
+      - condition: template
+        value_template: "{{ states('input_text.peak_assist_battery_fase') not in ['', 'unknown', 'unavailable'] }}"
+    action:
+      - variables:
+          assist_bat: "{{ states('input_text.peak_assist_battery_fase') }}"
+
+      # Zet peak assist batterij terug naar Manual
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Clear peak assist tracking
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: ""
+
+      # Logbook entry
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: >
+            {{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            voltooid (timer)
+          entity_id: input_text.peak_assist_battery_fase
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Voltooid"
+          message: >
+            {{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+            peak assist voltooid - terug naar Manual mode
+
+  # --------------------------------------------------------------------------
+  # PIEKBEWUST NACHTLADEN - Start bij nachtmodus
+  # --------------------------------------------------------------------------
+  - id: marstek_night_charging_peakaware_start
+    alias: "Marstek: Peak-Aware Night Charging Start"
+    description: "Start piekbewust laden bij nachtmodus - laadt leegste batterij in passive mode"
+    trigger:
+      - platform: time
+        at: input_datetime.night_mode_start_time
+    condition:
+      - condition: state
+        entity_id: input_select.night_charging_mode
+        state: "Piekbewust Laden"
+    action:
+      # Conditionally clear schedules (if switch enabled)
+      - if:
+          - condition: state
+            entity_id: input_boolean.clear_schedules_before_night_charging
+            state: "on"
+        then:
+          # Clear oude manual schedules EERST (voor clean start)
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "c1fbfff25b11fcecf3530135b0b08f2c"  # Fase A
+            continue_on_error: true
+
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"  # Fase B
+            continue_on_error: true
+
+          - service: marstek_local_api.clear_manual_schedules
+            data:
+              device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
+            continue_on_error: true
+
+          # Wacht tot clear compleet is
+          - delay:
+              seconds: 3
+
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Manual schedules gewist - piekbewust laden start"
+              entity_id: input_boolean.battery_rotation_enabled
+        else:
+          # Switch staat UIT: skip clear
+          # Logbook entry
+          - service: logbook.log
+            data:
+              name: "Night Charging"
+              message: "Clear schedules overgeslagen - piekbewust laden start (switch UIT)"
+              entity_id: input_boolean.battery_rotation_enabled
+
+      # Zet rotatie systeem UIT
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.battery_rotation_enabled
+
+      # Alle batterijen naar manual (clean slate)
+      - service: button.press
+        target:
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
+        continue_on_error: true
+
+      # Bepaal leegste batterij
+      - variables:
+          emptiest: "{{ states('sensor.battery_emptiest') }}"
+          power_w: "{{ states('input_number.night_charging_power')|int(2000) }}"
+
+      # Track huidige laadbatterij
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.night_charging_current_battery
+        data:
+          value: "{{ emptiest }}"
+
+      # Sla target deficit op voor later tracking
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.night_charging_target_deficit
+        data:
+          value: "{{ states('sensor.marstek_net_charging_deficit')|float(0) }}"
+
+      # Check of safe to charge
+      - if:
+          - condition: state
+            entity_id: sensor.marstek_safe_to_charge
+            state: "True"
+        then:
+          # Start laden van leegste batterij
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ emptiest == 'fase_a' }}"
+                sequence:
+                  - service: marstek_local_api.set_passive_mode
+                    data:
+                      device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                      power: "{{ -power_w }}"
+                      duration: 3600
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ emptiest == 'fase_b' }}"
+                sequence:
+                  - service: marstek_local_api.set_passive_mode
+                    data:
+                      device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                      power: "{{ -power_w }}"
+                      duration: 3600
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ emptiest == 'fase_c' }}"
+                sequence:
+                  - service: marstek_local_api.set_passive_mode
+                    data:
+                      device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                      power: "{{ -power_w }}"
+                      duration: 3600
+                    continue_on_error: true
+
+          # Zet tracking aan
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.night_charging_active
+
+          # Notificatie
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Piekbewust Laden Gestart"
+              message: >
+                {{ emptiest | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+                laden @ {{ power_w }}W
+                Headroom: {{ state_attr('sensor.marstek_safe_to_charge', 'headroom') }}W
+
+        else:
+          # Niet veilig om te starten, wacht op lagere piek
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Piekbewust Wacht"
+              message: >
+                Laden uitgesteld - piekgrens zou overschreden worden
+                Huidig gemiddelde: {{ state_attr('sensor.marstek_safe_to_charge', 'current_avg') }}W
+                Maandpiek: {{ state_attr('sensor.marstek_safe_to_charge', 'monthly_peak') }}W
+
+  # --------------------------------------------------------------------------
+  # PIEKBEWUST NACHTLADEN - Pauzeer bij hoog verbruik
+  # --------------------------------------------------------------------------
+  - id: marstek_night_charging_peakaware_pause
+    alias: "Marstek: Peak-Aware Night Charging Pause"
+    description: "Pauzeer laden als piekgrens dreigt overschreden te worden"
+    trigger:
+      - platform: state
+        entity_id: sensor.marstek_safe_to_charge
+        to: "False"
+    condition:
+      # Piekbewust laden is actief
+      - condition: state
+        entity_id: input_boolean.night_charging_active
+        state: "on"
+    action:
+      - variables:
+          current_bat: "{{ states('input_text.night_charging_current_battery') }}"
+
+      # Stop huidige laadbatterij
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ current_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ current_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ current_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Notificatie
+      - service: notify.persistent_notification
+        data:
+          title: "⚠️ Marstek - Laden Gepauzeerd"
+          message: >
+            Piekgrens dreigt overschreden - laden gepauzeerd
+            Huidig gemiddelde: {{ state_attr('sensor.marstek_safe_to_charge', 'current_avg') }}W
+
+  # --------------------------------------------------------------------------
+  # PIEKBEWUST NACHTLADEN - Hervat bij laag verbruik
+  # --------------------------------------------------------------------------
+  - id: marstek_night_charging_peakaware_resume
+    alias: "Marstek: Peak-Aware Night Charging Resume"
+    description: "Hervat laden wanneer piekgrens weer ruimte geeft"
+    trigger:
+      - platform: state
+        entity_id: sensor.marstek_safe_to_charge
+        to: "True"
+    condition:
+      # We zijn in nachtmodus (tussen night start en day start)
+      - condition: time
+        after: input_datetime.night_mode_start_time
+        before: input_datetime.day_mode_start_time
+      # Piekbewust modus geselecteerd
+      - condition: state
+        entity_id: input_select.night_charging_mode
+        state: "Piekbewust Laden"
+      # Er is een batterij geselecteerd om te laden
+      - condition: template
+        value_template: "{{ states('input_text.night_charging_current_battery') not in ['', 'unknown', 'unavailable'] }}"
+    action:
+      - variables:
+          current_bat: "{{ states('input_text.night_charging_current_battery') }}"
+          power_w: "{{ states('input_number.night_charging_power')|int(2000) }}"
+
+      # Check of huidige batterij niet vol is (< 95%)
+      - if:
+          - condition: template
+            value_template: >
+              {% if current_bat == 'fase_a' %}
+                {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(100) < 95 }}
+              {% elif current_bat == 'fase_b' %}
+                {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100) < 95 }}
+              {% else %}
+                {{ states('sensor.marstek_venuse_state_of_charge')|float(100) < 95 }}
+              {% endif %}
+        then:
+          # Hervat laden
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ current_bat == 'fase_a' }}"
+                sequence:
+                  - service: marstek_local_api.set_passive_mode
+                    data:
+                      device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                      power: "{{ -power_w }}"
+                      duration: 3600
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ current_bat == 'fase_b' }}"
+                sequence:
+                  - service: marstek_local_api.set_passive_mode
+                    data:
+                      device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                      power: "{{ -power_w }}"
+                      duration: 3600
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ current_bat == 'fase_c' }}"
+                sequence:
+                  - service: marstek_local_api.set_passive_mode
+                    data:
+                      device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                      power: "{{ -power_w }}"
+                      duration: 3600
+                    continue_on_error: true
+
+          # Zet tracking aan
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.night_charging_active
+
+          # Notificatie
+          - service: notify.persistent_notification
+            data:
+              title: "🌙 Marstek - Laden Hervat"
+              message: >
+                {{ current_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }}
+                laden hervat @ {{ power_w }}W
+
+  # --------------------------------------------------------------------------
+  # PIEKBEWUST NACHTLADEN - Volgende batterij bij vol
+  # --------------------------------------------------------------------------
+  - id: marstek_night_charging_peakaware_next
+    alias: "Marstek: Peak-Aware Night Charging Next Battery"
+    description: "Schakel naar volgende batterij wanneer huidige vol is"
+    trigger:
+      # Check elke 5 minuten
+      - platform: time_pattern
+        minutes: "/5"
+    condition:
+      # Piekbewust laden actief
+      - condition: state
+        entity_id: input_boolean.night_charging_active
+        state: "on"
+      # Huidige batterij is vol (>= 95%)
+      - condition: template
+        value_template: >
+          {% set current_bat = states('input_text.night_charging_current_battery') %}
+          {% if current_bat == 'fase_a' %}
+            {{ states('sensor.marstek_venuse_d828_state_of_charge')|float(0) >= 95 }}
+          {% elif current_bat == 'fase_b' %}
+            {{ states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(0) >= 95 }}
+          {% elif current_bat == 'fase_c' %}
+            {{ states('sensor.marstek_venuse_state_of_charge')|float(0) >= 95 }}
+          {% else %}
+            false
+          {% endif %}
+    action:
+      - variables:
+          current_bat: "{{ states('input_text.night_charging_current_battery') }}"
+          power_w: "{{ states('input_number.night_charging_power')|int(2000) }}"
+          # Vind volgende leegste batterij (exclusief huidige)
+          next_bat: >
+            {% set socs = {
+              'fase_a': states('sensor.marstek_venuse_d828_state_of_charge')|float(100),
+              'fase_b': states('sensor.marstek_venuse_3_0_9a7d_state_of_charge')|float(100),
+              'fase_c': states('sensor.marstek_venuse_state_of_charge')|float(100)
+            } %}
+            {% set candidates = socs | dictsort(by='value') | rejectattr('0', 'eq', current_bat) | selectattr('1', 'lt', 95) | list %}
+            {{ candidates[0][0] if candidates else '' }}
+
+      # Stop huidige batterij
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ current_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ current_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+
+          - conditions:
+              - condition: template
+                value_template: "{{ current_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+
+      # Check of deficit doel bereikt is
+      - variables:
+          target_deficit: "{{ states('input_number.night_charging_target_deficit')|float(0) }}"
+          current_deficit: "{{ states('sensor.marstek_net_charging_deficit')|float(0) }}"
+          charged_kwh: "{{ (target_deficit - current_deficit)|round(2) }}"
+          deficit_reached: "{{ current_deficit <= 0.2 }}"  # 200Wh marge
+
+      # Als deficit bereikt: stop laden (zelfs als batterij niet vol)
+      - if:
+          - condition: template
+            value_template: "{{ deficit_reached }}"
+        then:
+          # Stop piekbewust laden
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.night_charging_active
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.night_charging_current_battery
+            data:
+              value: ""
+          - service: input_number.set_value
+            target:
+              entity_id: input_number.night_charging_target_deficit
+            data:
+              value: 0
+
+          # Notificatie
+          - service: notify.persistent_notification
+            data:
+              title: "✅ Marstek - Doel Bereikt"
+              message: >
+                Piekbewust laden gestopt - {{ charged_kwh }} kWh geladen
+                (doel was {{ target_deficit }} kWh)
+
+          # Stop automation (skip rest)
+          - stop: "Deficit doel bereikt"
+
+      # Als er een volgende batterij is, start die
+      - if:
+          - condition: template
+            value_template: "{{ next_bat != '' }}"
+        then:
+          # Update tracking
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.night_charging_current_battery
+            data:
+              value: "{{ next_bat }}"
+
+          # Start volgende batterij (als safe to charge)
+          - if:
+              - condition: state
+                entity_id: sensor.marstek_safe_to_charge
+                state: "True"
+            then:
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ next_bat == 'fase_a' }}"
+                    sequence:
+                      - service: marstek_local_api.set_passive_mode
+                        data:
+                          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+                          power: "{{ -power_w }}"
+                          duration: 3600
+                        continue_on_error: true
+
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ next_bat == 'fase_b' }}"
+                    sequence:
+                      - service: marstek_local_api.set_passive_mode
+                        data:
+                          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+                          power: "{{ -power_w }}"
+                          duration: 3600
+                        continue_on_error: true
+
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ next_bat == 'fase_c' }}"
+                    sequence:
+                      - service: marstek_local_api.set_passive_mode
+                        data:
+                          device_id: "f15b9f6024d9a2b044ca90e77824a314"
+                          power: "{{ -power_w }}"
+                          duration: 3600
+                        continue_on_error: true
+
+          # Notificatie
+          - service: notify.persistent_notification
+            data:
+              title: "🔋 Marstek - Volgende Batterij"
+              message: >
+                {{ current_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }} vol
+                → {{ next_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }} gestart
+
+        else:
+          # Alle batterijen vol - stop piekbewust laden
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.night_charging_active
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.night_charging_current_battery
+            data:
+              value: ""
+          - service: notify.persistent_notification
+            data:
+              title: "✅ Marstek - Alle Batterijen Vol"
+              message: "Piekbewust nachtladen voltooid - alle batterijen >= 95%"
+
+  # --------------------------------------------------------------------------
   # AUTO-STOP WHEN ALL BATTERIES FULL - Voorkomt oneindige rotatie
   # --------------------------------------------------------------------------
   - id: marstek_auto_stop_all_full
@@ -1747,22 +2421,13 @@ automation:
         target:
           entity_id: input_boolean.battery_rotation_enabled
 
-      # Alle batterijen naar Manual mode (sequentieel voor UDP socket stability)
+      # Alle batterijen naar Manual mode
       - service: button.press
         target:
-          entity_id: button.fasea_schuin_d828_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.faseb_plat_v3_9a7d_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.fasec_geen_deb8_manual_mode
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
         continue_on_error: true
 
       # Clear active battery tracking
@@ -1872,153 +2537,11 @@ automation:
             Verbruik gedetecteerd ({{ p1_power|int }}W) - systeem herstart
           entity_id: input_boolean.battery_rotation_enabled
 
-  # --------------------------------------------------------------------------
-  # WEEKEND CHARGING - Tijd Aanpassing
-  # --------------------------------------------------------------------------
-  - id: marstek_weekend_charging_enable
-    alias: "Marstek: Weekend Charging Enable"
-    description: "Pas tijden aan naar weekend schema wanneer weekendladen wordt ingeschakeld"
-    trigger:
-      - platform: state
-        entity_id: input_boolean.weekend_charging_enabled
-        to: "on"
-    action:
-      # Zet naar weekend tijden
-      - service: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.night_mode_start_time
-        data:
-          time: "11:00:00"
-
-      - service: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.day_mode_start_time
-        data:
-          time: "17:00:00"
-
-      # Notificatie
-      - service: notify.persistent_notification
-        data:
-          title: "📅 Marstek - Weekendladen"
-          message: "Weekend schema actief: laden 11:00-17:00"
-
-  - id: marstek_weekend_charging_disable
-    alias: "Marstek: Weekend Charging Disable"
-    description: "Zet tijden terug naar standaard schema wanneer weekendladen wordt uitgeschakeld"
-    trigger:
-      - platform: state
-        entity_id: input_boolean.weekend_charging_enabled
-        to: "off"
-    action:
-      # Zet terug naar standaard tijden
-      - service: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.night_mode_start_time
-        data:
-          time: "01:00:00"
-
-      - service: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.day_mode_start_time
-        data:
-          time: "07:00:00"
-
-      # Notificatie
-      - service: notify.persistent_notification
-        data:
-          title: "📅 Marstek - Standaard Schema"
-          message: "Terug naar normaal: laden 01:00-07:00"
-
 # ============================================================================
 # SCRIPTS
 # Helper scripts voor manuele controle
 # ============================================================================
 script:
-  # --------------------------------------------------------------------------
-  # RETRY SCRIPT: Set Manual Schedule met 3 pogingen en foutmelding
-  # --------------------------------------------------------------------------
-  marstek_set_schedule_with_retry:
-    alias: "Set Manual Schedule met Retry"
-    mode: queued
-    fields:
-      device_id:
-        description: "Device ID"
-      device_name:
-        description: "Device naam voor logging"
-      time_num:
-        description: "Slot nummer"
-      start_time:
-        description: "Start tijd"
-      end_time:
-        description: "Eind tijd"
-      power:
-        description: "Vermogen (negatief = laden)"
-      enabled:
-        description: "Enabled true/false"
-      days:
-        description: "Dagen (optioneel, voor overflow)"
-    sequence:
-      - variables:
-          success: false
-
-      - repeat:
-          while:
-            - condition: template
-              value_template: "{{ repeat.index <= 3 and not success }}"
-          sequence:
-            # Met days parameter (overflow charging)
-            - if:
-                - condition: template
-                  value_template: "{{ days is defined and days }}"
-              then:
-                - service: marstek_local_api.set_manual_schedule
-                  data:
-                    device_id: "{{ device_id }}"
-                    time_num: "{{ time_num }}"
-                    start_time: "{{ start_time }}"
-                    end_time: "{{ end_time }}"
-                    days: "{{ days }}"
-                    power: "{{ power }}"
-                    enabled: "{{ enabled }}"
-                  continue_on_error: true
-                  response_variable: result
-              else:
-                - service: marstek_local_api.set_manual_schedule
-                  data:
-                    device_id: "{{ device_id }}"
-                    time_num: "{{ time_num }}"
-                    start_time: "{{ start_time }}"
-                    end_time: "{{ end_time }}"
-                    power: "{{ power }}"
-                    enabled: "{{ enabled }}"
-                  continue_on_error: true
-                  response_variable: result
-
-            - if:
-                - condition: template
-                  value_template: "{{ result is not mapping or not result.get('failed', false) }}"
-              then:
-                - variables:
-                    success: true
-                - stop: "Success na {{ repeat.index }} poging(en)"
-              else:
-                - delay:
-                    seconds: 5
-
-      # Na 3 pogingen gefaald - stuur notificatie
-      - if:
-          - condition: template
-            value_template: "{{ not success }}"
-        then:
-          - service: notify.persistent_notification
-            data:
-              title: "Marstek Schedule FOUT"
-              message: "{{ device_name }}: Slot {{ time_num }} instellen faalde na 3 pogingen"
-          - service: logbook.log
-            data:
-              name: "Marstek Error"
-              message: "FAILED: {{ device_name }} slot {{ time_num }} na 3 pogingen"
-
   # Helper: Start switch lock periode
   marstek_start_switch_lock:
     alias: "Start Switch Lock (30 sec)"
@@ -2047,16 +2570,12 @@ script:
       # Wacht op stabilisatie
       - delay:
           seconds: 5
-      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
+      # Dan pas andere batterijen deactiveren
       - service: button.press
         target:
-          entity_id: button.faseb_plat_v3_9a7d_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.fasec_geen_deb8_manual_mode
+          entity_id:
+            - button.faseb_plat_v3_9a7d_manual_mode
+            - button.fasec_geen_deb8_manual_mode
         continue_on_error: true
       # Update tracking
       - service: input_text.set_value
@@ -2088,16 +2607,12 @@ script:
       # Wacht op stabilisatie
       - delay:
           seconds: 5
-      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
+      # Dan pas andere batterijen deactiveren
       - service: button.press
         target:
-          entity_id: button.fasea_schuin_d828_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.fasec_geen_deb8_manual_mode
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.fasec_geen_deb8_manual_mode
         continue_on_error: true
       # Update tracking
       - service: input_text.set_value
@@ -2129,16 +2644,12 @@ script:
       # Wacht op stabilisatie
       - delay:
           seconds: 5
-      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
+      # Dan pas andere batterijen deactiveren
       - service: button.press
         target:
-          entity_id: button.fasea_schuin_d828_manual_mode
-        continue_on_error: true
-      - delay:
-          seconds: 2
-      - service: button.press
-        target:
-          entity_id: button.faseb_plat_v3_9a7d_manual_mode
+          entity_id:
+            - button.fasea_schuin_d828_manual_mode
+            - button.faseb_plat_v3_9a7d_manual_mode
         continue_on_error: true
       # Update tracking
       - service: input_text.set_value
@@ -2195,18 +2706,14 @@ script:
     alias: "Overflow Fase A"
     sequence:
       - variables:
+          power_w: "{{ states('input_number.overflow_power')|int(1500) }}"
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
-          overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
-      - service: script.marstek_set_schedule_with_retry
+      - service: marstek_local_api.set_passive_mode
         data:
           device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
-          device_name: "Fase A"
-          time_num: 9
-          start_time: "{{ now().strftime('%H:%M') }}"
-          end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-          days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: "{{ -overflow_power }}"
-          enabled: true
+          power: "{{ -power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
       - service: input_text.set_value
         target:
           entity_id: input_text.overflow_battery_fase
@@ -2220,29 +2727,25 @@ script:
       - service: logbook.log
         data:
           name: "Overflow Charging"
-          message: "Fase A handmatig gestart - Manual Schedule slot 9 @ {{ overflow_power }}W"
+          message: "Fase A handmatig gestart @ {{ power_w }}W"
           entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase A Manual Schedule slot 9 @ {{ overflow_power }}W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          message: "Fase A in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
 
   marstek_overflow_fase_b:
     alias: "Overflow Fase B"
     sequence:
       - variables:
+          power_w: "{{ states('input_number.overflow_power')|int(1500) }}"
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
-          overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
-      - service: script.marstek_set_schedule_with_retry
+      - service: marstek_local_api.set_passive_mode
         data:
           device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
-          device_name: "Fase B"
-          time_num: 9
-          start_time: "{{ now().strftime('%H:%M') }}"
-          end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-          days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: "{{ -overflow_power }}"
-          enabled: true
+          power: "{{ -power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
       - service: input_text.set_value
         target:
           entity_id: input_text.overflow_battery_fase
@@ -2256,29 +2759,25 @@ script:
       - service: logbook.log
         data:
           name: "Overflow Charging"
-          message: "Fase B handmatig gestart - Manual Schedule slot 9 @ {{ overflow_power }}W"
+          message: "Fase B handmatig gestart @ {{ power_w }}W"
           entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase B Manual Schedule slot 9 @ {{ overflow_power }}W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          message: "Fase B in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
 
   marstek_overflow_fase_c:
     alias: "Overflow Fase C"
     sequence:
       - variables:
+          power_w: "{{ states('input_number.overflow_power')|int(1500) }}"
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
-          overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
-      - service: script.marstek_set_schedule_with_retry
+      - service: marstek_local_api.set_passive_mode
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"
-          device_name: "Fase C"
-          time_num: 9
-          start_time: "{{ now().strftime('%H:%M') }}"
-          end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
-          days: ["{{ now().strftime('%a').lower()[:3] }}"]
-          power: "{{ -overflow_power }}"
-          enabled: true
+          power: "{{ -power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
       - service: input_text.set_value
         target:
           entity_id: input_text.overflow_battery_fase
@@ -2292,12 +2791,12 @@ script:
       - service: logbook.log
         data:
           name: "Overflow Charging"
-          message: "Fase C handmatig gestart - Manual Schedule slot 9 @ {{ overflow_power }}W"
+          message: "Fase C handmatig gestart @ {{ power_w }}W"
           entity_id: input_text.overflow_battery_fase
       - service: notify.persistent_notification
         data:
           title: "⚡ Marstek - Overflow Handmatig"
-          message: "Fase C Manual Schedule slot 9 @ {{ overflow_power }}W tot {{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
+          message: "Fase C in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
 
   marstek_overflow_stop:
     alias: "Stop Overflow"
@@ -2347,6 +2846,151 @@ script:
           title: "⚡ Marstek - Overflow Gestopt"
           message: "Overflow charging handmatig gestopt"
 
+  # Peak assist scripts
+  marstek_peak_assist_fase_a:
+    alias: "Peak Assist Fase A"
+    sequence:
+      - variables:
+          power_w: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+          power: "{{ power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "fase_a"
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "Fase A handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Handmatig"
+          message: "Fase A in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
+
+  marstek_peak_assist_fase_b:
+    alias: "Peak Assist Fase B"
+    sequence:
+      - variables:
+          power_w: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+          power: "{{ power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "fase_b"
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "Fase B handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Handmatig"
+          message: "Fase B in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
+
+  marstek_peak_assist_fase_c:
+    alias: "Peak Assist Fase C"
+    sequence:
+      - variables:
+          power_w: "{{ states('input_number.peak_assist_power')|int(1000) }}"
+          duration_sec: "{{ states('input_number.peak_assist_duration')|int(5) * 60 }}"
+      - service: marstek_local_api.set_passive_mode
+        data:
+          device_id: "f15b9f6024d9a2b044ca90e77824a314"
+          power: "{{ power_w }}"
+          duration: "{{ duration_sec }}"
+        continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: "fase_c"
+      - service: timer.start
+        target:
+          entity_id: timer.peak_assist_timer
+        data:
+          duration: "{{ duration_sec }}"
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "Fase C handmatig gestart @ {{ power_w }}W"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Handmatig"
+          message: "Fase C in Passive mode @ {{ power_w }}W voor {{ duration_sec // 60 }} min"
+
+  marstek_peak_assist_stop:
+    alias: "Stop Peak Assist"
+    sequence:
+      - variables:
+          assist_bat: "{{ states('input_text.peak_assist_battery_fase') }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_a' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_b' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+          - conditions:
+              - condition: template
+                value_template: "{{ assist_bat == 'fase_c' }}"
+            sequence:
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
+                continue_on_error: true
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.peak_assist_battery_fase
+        data:
+          value: ""
+      - service: timer.cancel
+        target:
+          entity_id: timer.peak_assist_timer
+      - service: logbook.log
+        data:
+          name: "Peak Assist"
+          message: "{{ assist_bat | replace('fase_a', 'Fase A') | replace('fase_b', 'Fase B') | replace('fase_c', 'Fase C') }} handmatig gestopt"
+          entity_id: input_text.peak_assist_battery_fase
+      - service: notify.persistent_notification
+        data:
+          title: "⚡ Marstek - Peak Assist Gestopt"
+          message: "Peak assist handmatig gestopt"
+
   # Clear all manual schedules (troubleshooting/maintenance)
   marstek_clear_all_schedules:
     alias: "Marstek: Clear All Manual Schedules"
@@ -2381,6 +3025,58 @@ script:
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"  # Fase C
         continue_on_error: true
+
+      # Stop piekbewust laden indien actief (voorkomt conflict)
+      - if:
+          - condition: state
+            entity_id: input_boolean.night_charging_active
+            state: "on"
+        then:
+          - variables:
+              charging_bat: "{{ states('input_text.night_charging_current_battery') }}"
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_a' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasea_schuin_d828_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_b' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                    continue_on_error: true
+
+              - conditions:
+                  - condition: template
+                    value_template: "{{ charging_bat == 'fase_c' }}"
+                sequence:
+                  - service: button.press
+                    target:
+                      entity_id: button.fasec_geen_deb8_manual_mode
+                    continue_on_error: true
+
+          # Reset tracking
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.night_charging_active
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.night_charging_current_battery
+            data:
+              value: ""
+          - service: input_number.set_value
+            target:
+              entity_id: input_number.night_charging_target_deficit
+            data:
+              value: 0
 
       # Activeer direct de volste batterij in Auto mode
       - variables:
