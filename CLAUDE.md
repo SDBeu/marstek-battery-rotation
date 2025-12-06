@@ -2,13 +2,55 @@
 
 > **📋 Zie [ROADMAP.md](./ROADMAP.md) voor het volledige stappenplan, status tracking en session logs**
 
-## Huidige Setup (November 2024)
+## Huidige Setup (December 2024)
 
 | Component | Status | Details |
 |-----------|--------|---------|
 | **SOC Data** | ✅ Actief | HA Marstek Local API integratie ([ha-marstek-local-api](https://github.com/jaapp/ha-marstek-local-api)) |
 | **Batterij Rotatie** | ✅ Actief | `config/packages/battery-rotation.yaml` via symlink in HA |
-| **MQTT Poller** | ❌ Niet in gebruik | Gearchiveerd in `archive/poller/` (fallback optie) |
+| **MQTT Poller** | ❌ Niet in gebruik | Gearchiveerd in `archive/poller/` - veroorzaakte UDP conflicts |
+
+## Error Handling & Retry Mechanisme
+
+### UDP Communicatie Betrouwbaarheid
+De Marstek batterijen communiceren via UDP port 30000. Door de aard van UDP en mogelijke firmware beperkingen is de success rate per request ~85-90%. Om betrouwbare automations te garanderen is een retry mechanisme geïmplementeerd.
+
+### Retry Script: `script.marstek_set_schedule_with_retry`
+Herbruikbaar script voor alle `set_manual_schedule` operaties:
+- **3 pogingen** per request met 5 seconden delay tussen pogingen
+- **Persistent notification** bij falen na alle pogingen
+- **Logbook entry** voor troubleshooting
+- Ondersteunt optionele `days` parameter voor overflow charging
+
+**Parameters:**
+| Parameter | Verplicht | Beschrijving |
+|-----------|-----------|--------------|
+| device_id | Ja | Device ID van de batterij |
+| device_name | Ja | Naam voor foutmeldingen (bijv. "Fase A") |
+| time_num | Ja | Slot nummer (0-9) |
+| start_time | Ja | Start tijd (HH:MM) |
+| end_time | Ja | Eind tijd (HH:MM) |
+| power | Ja | Vermogen in W (negatief = laden) |
+| enabled | Ja | true/false |
+| days | Nee | Lijst van dagen voor overflow (bijv. ["sat"]) |
+
+**Berekende betrouwbaarheid:**
+- 1 poging: ~87%
+- 2 pogingen: ~98.3%
+- 3 pogingen: ~99.8%
+
+### Functies met Retry
+| Functie | Script | Melding bij falen |
+|---------|--------|-------------------|
+| Nachtladen (slot 0) | ✅ | Persistent notification |
+| Overflow handmatig (slot 9) | ✅ | Persistent notification |
+| Overflow automatisch (slot 9) | ✅ | Persistent notification |
+| Clear schedules | ❌ | Handmatige maintenance |
+| Mode switches (Auto/Manual) | ❌ | Retry in HA integratie |
+
+### Bekende Problemen
+- **MQTT Poller conflict**: Als de gearchiveerde MQTT poller actief is, veroorzaakt deze UDP port conflicts. Zorg dat deze uitgeschakeld blijft.
+- **Fase B (Venus E 3.0)**: Kan soms vastlopen en vereist een reset. Firmware v143 lijkt minder stabiel dan de reguliere Venus E firmware.
 
 ## Project Overview
 Dit project biedt een API interface voor het uitlezen en aansturen van een Marstek Venus E batterij via de Local API (UDP JSON-RPC). Het eindoel is een MQTT bridge voor Home Assistant integratie met support voor meerdere batterijen.
