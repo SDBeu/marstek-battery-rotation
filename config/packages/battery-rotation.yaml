@@ -698,6 +698,8 @@ automation:
   # --------------------------------------------------------------------------
   # MANUAL TOGGLE OFF - Alle batterijen naar Manual
   # --------------------------------------------------------------------------
+  # NOTE: Sequentieel uitvoeren met delays om race conditions te voorkomen
+  # in de shared UDP socket van de marstek_local_api integratie
   - id: marstek_manual_toggle_off
     alias: "Marstek: Manual Toggle OFF"
     description: "Wanneer rotatie manueel uitgezet wordt, alle batterijen naar Manual"
@@ -706,12 +708,22 @@ automation:
         entity_id: input_boolean.battery_rotation_enabled
         to: "off"
     action:
+      # Sequentieel uitvoeren met delays om UDP socket race conditions te voorkomen
       - service: button.press
         target:
-          entity_id:
-            - button.fasea_schuin_d828_manual_mode
-            - button.faseb_plat_v3_9a7d_manual_mode
-            - button.fasec_geen_deb8_manual_mode
+          entity_id: button.fasea_schuin_d828_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.faseb_plat_v3_9a7d_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.fasec_geen_deb8_manual_mode
         continue_on_error: true
 
       - service: notify.persistent_notification
@@ -763,11 +775,17 @@ automation:
                 target:
                   entity_id: button.fasea_schuin_d828_auto_mode
                 continue_on_error: true
+              - delay:
+                  seconds: 2
               - service: button.press
                 target:
-                  entity_id:
-                    - button.faseb_plat_v3_9a7d_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -778,11 +796,17 @@ automation:
                 target:
                   entity_id: button.faseb_plat_v3_9a7d_auto_mode
                 continue_on_error: true
+              - delay:
+                  seconds: 2
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -793,11 +817,17 @@ automation:
                 target:
                   entity_id: button.fasec_geen_deb8_auto_mode
                 continue_on_error: true
+              - delay:
+                  seconds: 2
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -905,7 +935,7 @@ automation:
       - delay:
           seconds: 5
 
-      # Dan pas andere batterijen deactiveren
+      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
       - choose:
           - conditions:
               - condition: template
@@ -913,9 +943,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.faseb_plat_v3_9a7d_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -924,9 +958,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -935,9 +973,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -1027,7 +1069,7 @@ automation:
       - delay:
           seconds: 5
 
-      # Dan pas andere batterijen deactiveren
+      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
       - choose:
           - conditions:
               - condition: template
@@ -1035,9 +1077,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.faseb_plat_v3_9a7d_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -1046,9 +1092,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -1057,9 +1107,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -1152,7 +1206,7 @@ automation:
       - delay:
           seconds: 5
 
-      # Dan pas andere batterijen deactiveren
+      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
       - choose:
           - conditions:
               - condition: template
@@ -1160,9 +1214,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.faseb_plat_v3_9a7d_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -1171,9 +1229,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.fasec_geen_deb8_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.fasec_geen_deb8_manual_mode
                 continue_on_error: true
 
           - conditions:
@@ -1182,9 +1244,13 @@ automation:
             sequence:
               - service: button.press
                 target:
-                  entity_id:
-                    - button.fasea_schuin_d828_manual_mode
-                    - button.faseb_plat_v3_9a7d_manual_mode
+                  entity_id: button.fasea_schuin_d828_manual_mode
+                continue_on_error: true
+              - delay:
+                  seconds: 2
+              - service: button.press
+                target:
+                  entity_id: button.faseb_plat_v3_9a7d_manual_mode
                 continue_on_error: true
 
       # Update tracking
@@ -1327,12 +1393,16 @@ automation:
       - delay:
           seconds: 5
 
-      # Deactiveer andere batterijen
+      # Deactiveer andere batterijen (sequentieel voor UDP socket stability)
       - service: button.press
         target:
-          entity_id:
-            - button.faseb_plat_v3_9a7d_manual_mode
-            - button.fasec_geen_deb8_manual_mode
+          entity_id: button.faseb_plat_v3_9a7d_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.fasec_geen_deb8_manual_mode
         continue_on_error: true
 
       # Update tracking
@@ -1675,13 +1745,22 @@ automation:
         target:
           entity_id: input_boolean.battery_rotation_enabled
 
-      # Alle batterijen naar Manual mode
+      # Alle batterijen naar Manual mode (sequentieel voor UDP socket stability)
       - service: button.press
         target:
-          entity_id:
-            - button.fasea_schuin_d828_manual_mode
-            - button.faseb_plat_v3_9a7d_manual_mode
-            - button.fasec_geen_deb8_manual_mode
+          entity_id: button.fasea_schuin_d828_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.faseb_plat_v3_9a7d_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.fasec_geen_deb8_manual_mode
         continue_on_error: true
 
       # Clear active battery tracking
@@ -1881,12 +1960,16 @@ script:
       # Wacht op stabilisatie
       - delay:
           seconds: 5
-      # Dan pas andere batterijen deactiveren
+      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
       - service: button.press
         target:
-          entity_id:
-            - button.faseb_plat_v3_9a7d_manual_mode
-            - button.fasec_geen_deb8_manual_mode
+          entity_id: button.faseb_plat_v3_9a7d_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.fasec_geen_deb8_manual_mode
         continue_on_error: true
       # Update tracking
       - service: input_text.set_value
@@ -1918,12 +2001,16 @@ script:
       # Wacht op stabilisatie
       - delay:
           seconds: 5
-      # Dan pas andere batterijen deactiveren
+      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
       - service: button.press
         target:
-          entity_id:
-            - button.fasea_schuin_d828_manual_mode
-            - button.fasec_geen_deb8_manual_mode
+          entity_id: button.fasea_schuin_d828_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.fasec_geen_deb8_manual_mode
         continue_on_error: true
       # Update tracking
       - service: input_text.set_value
@@ -1955,12 +2042,16 @@ script:
       # Wacht op stabilisatie
       - delay:
           seconds: 5
-      # Dan pas andere batterijen deactiveren
+      # Dan pas andere batterijen deactiveren (sequentieel voor UDP socket stability)
       - service: button.press
         target:
-          entity_id:
-            - button.fasea_schuin_d828_manual_mode
-            - button.faseb_plat_v3_9a7d_manual_mode
+          entity_id: button.fasea_schuin_d828_manual_mode
+        continue_on_error: true
+      - delay:
+          seconds: 2
+      - service: button.press
+        target:
+          entity_id: button.faseb_plat_v3_9a7d_manual_mode
         continue_on_error: true
       # Update tracking
       - service: input_text.set_value
