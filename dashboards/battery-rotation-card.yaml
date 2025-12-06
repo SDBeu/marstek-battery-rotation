@@ -72,6 +72,8 @@ cards:
           entities:
             - entity: input_boolean.battery_rotation_enabled
               name: Batterij Rotatie
+            - entity: input_boolean.overflow_charging_enabled
+              name: Overflow Charging
             - entity: input_boolean.night_charging_enabled
               name: Nachtladen
             - entity: input_boolean.weekend_charging_enabled

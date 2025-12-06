@@ -692,6 +692,11 @@ input_boolean:
     initial: true
     icon: mdi:calendar-weekend
 
+  overflow_charging_enabled:
+    name: "Overflow Charging"
+    initial: true
+    icon: mdi:battery-plus
+
   battery_switch_in_progress:
     name: "Batterij Switch Bezig"
     initial: false
@@ -1458,6 +1463,11 @@ automation:
       # Systeem enabled
       - condition: state
         entity_id: input_boolean.battery_rotation_enabled
+        state: "on"
+
+      # Overflow charging enabled
+      - condition: state
+        entity_id: input_boolean.overflow_charging_enabled
         state: "on"
 
       # Geen overflow al actief
