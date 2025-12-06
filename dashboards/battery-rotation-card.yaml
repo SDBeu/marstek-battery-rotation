@@ -145,7 +145,7 @@ cards:
               name: Fase C (geen)
               icon: mdi:battery
             - type: divider
-            - entity: sensor.marstek_system_total_remaining_capacity_2
+            - entity: sensor.marstek_total_remaining_capacity
               name: Totaal Systeem
               icon: mdi:battery-high
 
@@ -225,9 +225,6 @@ cards:
               name: Nachtmodus Start
             - entity: input_datetime.day_mode_start_time
               name: Dagmodus Start
-            - type: divider
-            - entity: input_boolean.clear_schedules_before_night_charging
-              name: Clear Schedules Voor Nachtladen
 
   # ==========================================================================
   # TAB 3: BESTURING - Manual Controls

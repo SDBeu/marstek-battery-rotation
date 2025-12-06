@@ -30,6 +30,17 @@ template:
           {% set available = states('sensor.marstek_venuse_3_0_9a7d_available_capacity')|float(0) %}
           {{ (rated - available) | round(2) }}
 
+      # Totaal systeem capaciteit (correcte som van alle 3 batterijen)
+      - name: "Marstek Total Remaining Capacity"
+        unique_id: marstek_total_remaining_capacity
+        unit_of_measurement: "kWh"
+        icon: mdi:battery-high
+        state: >
+          {% set cap_a = states('sensor.marstek_venuse_d828_remaining_capacity')|float(0) %}
+          {% set cap_b = states('sensor.marstek_fase_b_remaining_capacity')|float(0) %}
+          {% set cap_c = states('sensor.marstek_venuse_remaining_capacity')|float(0) %}
+          {{ (cap_a + cap_b + cap_c) | round(2) }}
+
       # Leegste batterij (voor laden bij zonoverschot)
       # Bij unavailable: assume 100% (vol) zodat die niet geselecteerd wordt
       - name: "Battery Emptiest"
