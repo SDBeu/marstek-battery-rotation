@@ -1971,6 +1971,8 @@ script:
         description: "Vermogen (negatief = laden)"
       enabled:
         description: "Enabled true/false"
+      days:
+        description: "Dagen (optioneel, voor overflow)"
     sequence:
       - variables:
           success: false
@@ -1980,16 +1982,33 @@ script:
             - condition: template
               value_template: "{{ repeat.index <= 3 and not success }}"
           sequence:
-            - service: marstek_local_api.set_manual_schedule
-              data:
-                device_id: "{{ device_id }}"
-                time_num: "{{ time_num }}"
-                start_time: "{{ start_time }}"
-                end_time: "{{ end_time }}"
-                power: "{{ power }}"
-                enabled: "{{ enabled }}"
-              continue_on_error: true
-              response_variable: result
+            # Met days parameter (overflow charging)
+            - if:
+                - condition: template
+                  value_template: "{{ days is defined and days }}"
+              then:
+                - service: marstek_local_api.set_manual_schedule
+                  data:
+                    device_id: "{{ device_id }}"
+                    time_num: "{{ time_num }}"
+                    start_time: "{{ start_time }}"
+                    end_time: "{{ end_time }}"
+                    days: "{{ days }}"
+                    power: "{{ power }}"
+                    enabled: "{{ enabled }}"
+                  continue_on_error: true
+                  response_variable: result
+              else:
+                - service: marstek_local_api.set_manual_schedule
+                  data:
+                    device_id: "{{ device_id }}"
+                    time_num: "{{ time_num }}"
+                    start_time: "{{ start_time }}"
+                    end_time: "{{ end_time }}"
+                    power: "{{ power }}"
+                    enabled: "{{ enabled }}"
+                  continue_on_error: true
+                  response_variable: result
 
             - if:
                 - condition: template
@@ -2194,16 +2213,16 @@ script:
       - variables:
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
           overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
-      - service: marstek_local_api.set_manual_schedule
+      - service: script.marstek_set_schedule_with_retry
         data:
           device_id: "c1fbfff25b11fcecf3530135b0b08f2c"
+          device_name: "Fase A"
           time_num: 9
           start_time: "{{ now().strftime('%H:%M') }}"
           end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
           days: ["{{ now().strftime('%a').lower()[:3] }}"]
           power: "{{ -overflow_power }}"
           enabled: true
-        continue_on_error: true
       - service: input_text.set_value
         target:
           entity_id: input_text.overflow_battery_fase
@@ -2230,16 +2249,16 @@ script:
       - variables:
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
           overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
-      - service: marstek_local_api.set_manual_schedule
+      - service: script.marstek_set_schedule_with_retry
         data:
           device_id: "79ea26ebcb0b77cc1e4acd1cc5af41f6"
+          device_name: "Fase B"
           time_num: 9
           start_time: "{{ now().strftime('%H:%M') }}"
           end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
           days: ["{{ now().strftime('%a').lower()[:3] }}"]
           power: "{{ -overflow_power }}"
           enabled: true
-        continue_on_error: true
       - service: input_text.set_value
         target:
           entity_id: input_text.overflow_battery_fase
@@ -2266,16 +2285,16 @@ script:
       - variables:
           duration_sec: "{{ states('input_number.overflow_duration')|int(30) * 60 }}"
           overflow_power: "{{ states('input_number.overflow_power')|int(1500) }}"
-      - service: marstek_local_api.set_manual_schedule
+      - service: script.marstek_set_schedule_with_retry
         data:
           device_id: "f15b9f6024d9a2b044ca90e77824a314"
+          device_name: "Fase C"
           time_num: 9
           start_time: "{{ now().strftime('%H:%M') }}"
           end_time: "{{ (now() + timedelta(seconds=duration_sec)).strftime('%H:%M') }}"
           days: ["{{ now().strftime('%a').lower()[:3] }}"]
           power: "{{ -overflow_power }}"
           enabled: true
-        continue_on_error: true
       - service: input_text.set_value
         target:
           entity_id: input_text.overflow_battery_fase
