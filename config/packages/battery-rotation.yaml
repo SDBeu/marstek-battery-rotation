@@ -1321,47 +1321,46 @@ automation:
             {% endfor %}
             {{ ns.result }}
 
-      # ALTIJD alle 3 batterijen slot 0 updaten (overschrijven oude waarde)
-      # Met delays ertussen om UDP conflicts te voorkomen
+      # ALTIJD alle 3 batterijen slot 0 updaten (met retry en notificatie bij falen)
 
       # Batterij 1 (charging_plan gesorteerd op beschikbare ruimte)
-      - service: marstek_local_api.set_manual_schedule
+      - service: script.marstek_set_schedule_with_retry
         data:
           device_id: "{{ charging_plan[0].device_id }}"
+          device_name: "{{ charging_plan[0].name }}"
           time_num: 0
           start_time: "{{ night_start }}"
           end_time: "{{ night_end }}"
           power: "{{ -charging_plan[0].power if charging_plan[0].power > 0 else 0 }}"
           enabled: "{{ charging_plan[0].power > 0 }}"
-        continue_on_error: true
 
       - delay:
           seconds: 3
 
       # Batterij 2
-      - service: marstek_local_api.set_manual_schedule
+      - service: script.marstek_set_schedule_with_retry
         data:
           device_id: "{{ charging_plan[1].device_id }}"
+          device_name: "{{ charging_plan[1].name }}"
           time_num: 0
           start_time: "{{ night_start }}"
           end_time: "{{ night_end }}"
           power: "{{ -charging_plan[1].power if charging_plan[1].power > 0 else 0 }}"
           enabled: "{{ charging_plan[1].power > 0 }}"
-        continue_on_error: true
 
       - delay:
           seconds: 3
 
       # Batterij 3
-      - service: marstek_local_api.set_manual_schedule
+      - service: script.marstek_set_schedule_with_retry
         data:
           device_id: "{{ charging_plan[2].device_id }}"
+          device_name: "{{ charging_plan[2].name }}"
           time_num: 0
           start_time: "{{ night_start }}"
           end_time: "{{ night_end }}"
           power: "{{ -charging_plan[2].power if charging_plan[2].power > 0 else 0 }}"
           enabled: "{{ charging_plan[2].power > 0 }}"
-        continue_on_error: true
 
       # Notificatie met laadinfo
       - service: notify.persistent_notification
@@ -1940,6 +1939,72 @@ automation:
 # Helper scripts voor manuele controle
 # ============================================================================
 script:
+  # --------------------------------------------------------------------------
+  # RETRY SCRIPT: Set Manual Schedule met 3 pogingen en foutmelding
+  # --------------------------------------------------------------------------
+  marstek_set_schedule_with_retry:
+    alias: "Set Manual Schedule met Retry"
+    mode: queued
+    fields:
+      device_id:
+        description: "Device ID"
+      device_name:
+        description: "Device naam voor logging"
+      time_num:
+        description: "Slot nummer"
+      start_time:
+        description: "Start tijd"
+      end_time:
+        description: "Eind tijd"
+      power:
+        description: "Vermogen (negatief = laden)"
+      enabled:
+        description: "Enabled true/false"
+    sequence:
+      - variables:
+          success: false
+
+      - repeat:
+          while:
+            - condition: template
+              value_template: "{{ repeat.index <= 3 and not success }}"
+          sequence:
+            - service: marstek_local_api.set_manual_schedule
+              data:
+                device_id: "{{ device_id }}"
+                time_num: "{{ time_num }}"
+                start_time: "{{ start_time }}"
+                end_time: "{{ end_time }}"
+                power: "{{ power }}"
+                enabled: "{{ enabled }}"
+              continue_on_error: true
+              response_variable: result
+
+            - if:
+                - condition: template
+                  value_template: "{{ result is not mapping or not result.get('failed', false) }}"
+              then:
+                - variables:
+                    success: true
+                - stop: "Success na {{ repeat.index }} poging(en)"
+              else:
+                - delay:
+                    seconds: 5
+
+      # Na 3 pogingen gefaald - stuur notificatie
+      - if:
+          - condition: template
+            value_template: "{{ not success }}"
+        then:
+          - service: notify.persistent_notification
+            data:
+              title: "Marstek Schedule FOUT"
+              message: "{{ device_name }}: Slot {{ time_num }} instellen faalde na 3 pogingen"
+          - service: logbook.log
+            data:
+              name: "Marstek Error"
+              message: "FAILED: {{ device_name }} slot {{ time_num }} na 3 pogingen"
+
   # Helper: Start switch lock periode
   marstek_start_switch_lock:
     alias: "Start Switch Lock (30 sec)"
